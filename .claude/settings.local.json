@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest *)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(command -v nvm)",
+      "Read(//Users/anthonyprudent/**)",
+      "Bash(node -e \"const t = require\\('@trigger.dev/sdk/v3'\\); console.log\\(Object.keys\\(t\\).slice\\(0,20\\)\\)\")",
+      "Bash(node *)"
+    ]
+  }
+}
