@@ -6,10 +6,12 @@ import { redirect } from 'next/navigation'
 
 type AuthState = { error: string } | { success: string } | null
 
-const admin = createAdmin(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
+function getAdmin() {
+  return createAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
 
 export async function login(prevState: AuthState, formData: FormData): Promise<AuthState> {
   const supabase = await createClient()
@@ -50,7 +52,7 @@ export async function signupWithProfile(_: AuthState, formData: FormData): Promi
 
   // Save full profile via admin (bypasses RLS, works before email confirmation)
   const goals = formData.getAll('goals') as string[]
-  await admin.from('profiles').upsert({
+  await getAdmin().from('profiles').upsert({
     id:             userId,
     first_name:     formData.get('firstName')      as string,
     last_name:      formData.get('lastName')       as string,
