@@ -3,11 +3,12 @@ import { getStripe } from '@/lib/stripe'
 import { createClient } from '@supabase/supabase-js'
 import type Stripe from 'stripe'
 
-// Admin client — bypasses RLS
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
+function getAdminSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.text()
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
       }
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription
-        await adminSupabase
+        await getAdminSupabase()
           .from('subscriptions')
           .update({ status: 'canceled', updated_at: new Date().toISOString() })
           .eq('stripe_subscription_id', sub.id)
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
         const invoice = event.data.object as any
         const subId   = invoice.subscription ?? invoice.parent?.subscription_details?.subscription
         if (subId) {
-          await adminSupabase
+          await getAdminSupabase()
             .from('subscriptions')
             .update({ status: 'past_due', updated_at: new Date().toISOString() })
             .eq('stripe_subscription_id', subId as string)
@@ -71,7 +72,7 @@ async function upsertSubscription(sub: Stripe.Subscription) {
   // Resolve user_id from email if not in metadata
   let resolvedUserId = userId || null
   if (!resolvedUserId && email) {
-    const { data: users } = await adminSupabase.auth.admin.listUsers()
+    const { data: users } = await getAdminSupabase().auth.admin.listUsers()
     const match = users?.users?.find(u => u.email === email)
     if (match) resolvedUserId = match.id
   }
@@ -80,7 +81,7 @@ async function upsertSubscription(sub: Stripe.Subscription) {
     ? null
     : new Date((sub as unknown as { current_period_end: number }).current_period_end * 1000).toISOString()
 
-  await adminSupabase.from('subscriptions').upsert({
+  await getAdminSupabase().from('subscriptions').upsert({
     stripe_customer_id:     customerId,
     stripe_subscription_id: sub.id,
     user_id:                resolvedUserId,
