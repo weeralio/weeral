@@ -48,7 +48,7 @@ export async function signupWithProfile(_: AuthState, formData: FormData): Promi
     if (error) return { error: error.message }
 
     const userId = data.user?.id
-    if (!userId) return { error: 'Erreur lors de la création du compte.' }
+    if (!userId) return { error: 'Cet email est déjà utilisé. Connecte-toi ou utilise un autre email.' }
 
     const goals = formData.getAll('goals') as string[]
     const { error: profileError } = await getAdmin().from('profiles').upsert({
