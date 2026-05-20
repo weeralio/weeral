@@ -1,5 +1,3 @@
-import Stripe from 'stripe'
-
 export const PLAN_META = {
   starter: { name: 'Starter', monthlyPrice: 197, annualPrice: 118, annualTotal: 1416 },
   growth:  { name: 'Growth',  monthlyPrice: 247, annualPrice: 148, annualTotal: 1776 },
@@ -9,16 +7,13 @@ export const PLAN_META = {
 export type PlanId = keyof typeof PLAN_META
 export type Billing = 'monthly' | 'annual'
 
-// Lazy init — évite le crash au build si STRIPE_SECRET_KEY est absent
-let _stripe: Stripe | null = null
-export function getStripe(): Stripe {
-  if (!_stripe) {
-    if (!process.env.STRIPE_SECRET_KEY) {
-      throw new Error('STRIPE_SECRET_KEY is not set')
-    }
-    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+export function getStripe() {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const Stripe = require('stripe')
+  if (!process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY.startsWith('sk_live_...') || process.env.STRIPE_SECRET_KEY.startsWith('sk_test_...')) {
+    throw new Error('STRIPE_SECRET_KEY non configuré')
   }
-  return _stripe
+  return new Stripe(process.env.STRIPE_SECRET_KEY)
 }
 
 export function getPriceId(plan: PlanId, billing: Billing): string {
