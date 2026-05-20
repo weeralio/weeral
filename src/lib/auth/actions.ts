@@ -27,49 +27,54 @@ export async function login(prevState: AuthState, formData: FormData): Promise<A
 }
 
 export async function signupWithProfile(_: AuthState, formData: FormData): Promise<AuthState> {
-  const supabase = await createClient()
+  try {
+    const supabase = await createClient()
 
-  const email    = formData.get('email')    as string
-  const password = formData.get('password') as string
+    const email    = formData.get('email')    as string
+    const password = formData.get('password') as string
 
-  // Create auth account
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
-      data: {
-        first_name: formData.get('firstName'),
-        last_name:  formData.get('lastName'),
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://weeral.io'}/auth/callback`,
+        data: {
+          first_name: formData.get('firstName'),
+          last_name:  formData.get('lastName'),
+        },
       },
-    },
-  })
+    })
 
-  if (error) return { error: error.message }
+    if (error) return { error: error.message }
 
-  const userId = data.user?.id
-  if (!userId) return { error: 'Erreur lors de la création du compte.' }
+    const userId = data.user?.id
+    if (!userId) return { error: 'Erreur lors de la création du compte.' }
 
-  // Save full profile via admin (bypasses RLS, works before email confirmation)
-  const goals = formData.getAll('goals') as string[]
-  await getAdmin().from('profiles').upsert({
-    id:             userId,
-    first_name:     formData.get('firstName')      as string,
-    last_name:      formData.get('lastName')       as string,
-    phone:          formData.get('phone')          as string,
-    address_line:   formData.get('addressLine')    as string,
-    city:           formData.get('city')           as string,
-    postal_code:    formData.get('postalCode')     as string,
-    country:        formData.get('country')        as string,
-    company:        formData.get('company')        as string,
-    industry:       formData.get('industry')       as string,
-    team_size:      formData.get('teamSize')       as string,
-    goals,
-    referral_source: formData.get('referralSource') as string,
-    onboarding_completed: true,
-  })
+    const goals = formData.getAll('goals') as string[]
+    const { error: profileError } = await getAdmin().from('profiles').upsert({
+      id:                   userId,
+      first_name:           formData.get('firstName')      as string,
+      last_name:            formData.get('lastName')       as string,
+      phone:                formData.get('phone')          as string,
+      address_line:         formData.get('addressLine')    as string,
+      city:                 formData.get('city')           as string,
+      postal_code:          formData.get('postalCode')     as string,
+      country:              formData.get('country')        as string,
+      company:              formData.get('company')        as string,
+      industry:             formData.get('industry')       as string,
+      team_size:            formData.get('teamSize')       as string,
+      goals,
+      referral_source:      formData.get('referralSource') as string,
+      onboarding_completed: true,
+    })
 
-  return { success: 'Vérifie ton email pour confirmer ton compte.' }
+    if (profileError) console.error('[signup] profile upsert error:', profileError.message)
+
+    return { success: 'Vérifie ton email pour confirmer ton compte.' }
+  } catch (err) {
+    console.error('[signup] unexpected error:', err)
+    return { error: err instanceof Error ? err.message : 'Erreur serveur. Réessaie.' }
+  }
 }
 
 export async function logout() {
