@@ -1,11 +1,13 @@
 'use client'
 
 import { useActionState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { login } from '@/lib/auth/actions'
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(login, null)
+  const confirmed = useSearchParams().get('confirmed')
 
   return (
     <div className="w-full max-w-sm mx-auto">
@@ -15,6 +17,15 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-white mb-1.5">Connexion</h1>
           <p className="text-sm text-[#94a3b8]">Accède à ton espace d&apos;envoi</p>
         </div>
+
+        {confirmed && (
+          <div className="flex items-start gap-3 bg-emerald-950/40 border border-emerald-800/40 px-4 py-3 rounded-lg mb-5">
+            <svg className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-sm text-emerald-400">Email confirmé ! Tu peux maintenant te connecter.</p>
+          </div>
+        )}
 
         <form action={formAction} className="space-y-5">
           <div>
