@@ -23,7 +23,13 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    // Supabase unreachable — allow request through, page-level auth will handle it
+  }
 
   const isAuthPage = ['/login', '/signup'].some(p =>
     request.nextUrl.pathname.startsWith(p)
