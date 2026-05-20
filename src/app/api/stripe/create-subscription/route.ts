@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { stripe, getPriceId, PLAN_META, type PlanId, type Billing } from '@/lib/stripe'
+import { getStripe, getPriceId, PLAN_META, type PlanId, type Billing } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server'
 
 export async function POST(req: NextRequest) {
@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
 
     // Find or create Stripe customer
+    const stripe = getStripe()
     const existing = await stripe.customers.list({ email, limit: 1 })
     let customer = existing.data[0]
 

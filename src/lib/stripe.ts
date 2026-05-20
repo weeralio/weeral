@@ -1,7 +1,5 @@
 import Stripe from 'stripe'
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
-
 export const PLAN_META = {
   starter: { name: 'Starter', monthlyPrice: 197, annualPrice: 118, annualTotal: 1416 },
   growth:  { name: 'Growth',  monthlyPrice: 247, annualPrice: 148, annualTotal: 1776 },
@@ -10,6 +8,18 @@ export const PLAN_META = {
 
 export type PlanId = keyof typeof PLAN_META
 export type Billing = 'monthly' | 'annual'
+
+// Lazy init — évite le crash au build si STRIPE_SECRET_KEY est absent
+let _stripe: Stripe | null = null
+export function getStripe(): Stripe {
+  if (!_stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error('STRIPE_SECRET_KEY is not set')
+    }
+    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+  }
+  return _stripe
+}
 
 export function getPriceId(plan: PlanId, billing: Billing): string {
   const map: Record<PlanId, Record<Billing, string>> = {
