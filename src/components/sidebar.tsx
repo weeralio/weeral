@@ -123,7 +123,7 @@ export default function Sidebar({ email }: { email: string }) {
             )}
             <div className="space-y-0.5">
               {group.items.map((item) => {
-                const isActive = item.exact
+                const isActive = ('exact' in item && item.exact)
                   ? pathname === item.href
                   : pathname.startsWith(item.href)
 
