@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import LineChart from '@/components/charts/line-chart'
 import { BOUNCE_RATE_THRESHOLD, COMPLAINT_RATE_THRESHOLD } from '@/lib/warmup'
+import { getUserLimits } from '@/lib/credits'
+import CreditsBanner from '@/components/credits-banner'
 
 // ─── Onboarding ───────────────────────────────────────────────────────────────
 
@@ -223,15 +225,24 @@ export default async function DashboardPage() {
   const hasCampaign  = (totalCampaigns ?? 0) > 0
   const isOperational = hasContacts && hasAws && hasDomain && hasCampaign
 
+  const limits = await getUserLimits(user!.id)
+
   // Show onboarding if not fully set up
   if (!isOperational) {
     return (
-      <OnboardingBanner
+      <>
+        <CreditsBanner
+          contactsUsed={limits.contactsUsed}
+          emailsSent={limits.emailsSent}
+          isSubscribed={limits.isSubscribed}
+        />
+        <OnboardingBanner
         hasContacts={hasContacts}
         hasAws={hasAws}
         hasDomain={hasDomain}
         hasCampaign={hasCampaign}
       />
+      </>
     )
   }
 
@@ -280,6 +291,11 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <CreditsBanner
+        contactsUsed={limits.contactsUsed}
+        emailsSent={limits.emailsSent}
+        isSubscribed={limits.isSubscribed}
+      />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Tableau de bord</h1>

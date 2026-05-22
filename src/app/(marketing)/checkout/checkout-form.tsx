@@ -1,7 +1,98 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { loadStripe } from '@stripe/stripe-js'
+import {
+  Elements,
+  PaymentElement,
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js'
 import Link from 'next/link'
 import { PLAN_META, type PlanId, type Billing } from '@/lib/stripe'
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '')
+
+// ─── Inner payment form ───────────────────────────────────────────────────────
+
+function PaymentForm({
+  plan, billing, price, clientSecret,
+}: {
+  plan: PlanId
+  billing: Billing
+  price: number
+  clientSecret: string
+}) {
+  const stripe   = useStripe()
+  const elements = useElements()
+  const [error,   setError]   = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!stripe || !elements) return
+    setLoading(true)
+    setError(null)
+
+    const { error: stripeError } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: `${window.location.origin}/checkout/success?plan=${plan}&billing=${billing}`,
+      },
+    })
+
+    if (stripeError) {
+      setError(stripeError.message ?? 'Erreur de paiement.')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="bg-[#07070f] border border-[#1e1e3f] rounded-xl p-4">
+        <PaymentElement
+          options={{
+            layout: 'tabs',
+            fields: { billingDetails: { address: { country: 'never' } } },
+          }}
+        />
+      </div>
+
+      {error && (
+        <div className="flex items-start gap-3 bg-red-950/30 border border-red-800/40 rounded-xl px-4 py-3">
+          <svg className="w-4 h-4 text-red-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <p className="text-sm text-red-400">{error}</p>
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={loading || !stripe}
+        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white font-semibold text-sm hover:from-[#6d28d9] hover:to-[#7c3aed] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_20px_rgba(139,92,246,0.3)] flex items-center justify-center gap-2"
+      >
+        {loading ? (
+          <>
+            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Traitement...
+          </>
+        ) : (
+          `Payer ${price}€/${billing === 'annual' ? 'mois' : 'mois'}`
+        )}
+      </button>
+
+      <p className="text-xs text-center text-[#334155]">
+        Paiement sécurisé par Stripe · Annulable à tout moment
+      </p>
+    </form>
+  )
+}
+
+// ─── Outer checkout wrapper ───────────────────────────────────────────────────
 
 interface Props {
   plan:      PlanId
@@ -9,41 +100,152 @@ interface Props {
   userEmail: string | null
 }
 
-export default function CheckoutForm({ plan, billing }: Props) {
+export default function CheckoutForm({ plan, billing, userEmail }: Props) {
   const meta  = PLAN_META[plan]
   const price = billing === 'annual' ? meta.annualPrice : meta.monthlyPrice
 
+  const [email,        setEmail]        = useState(userEmail ?? '')
+  const [clientSecret, setClientSecret] = useState<string | null>(null)
+  const [error,        setError]        = useState<string | null>(null)
+  const [loading,      setLoading]      = useState(false)
+
+  async function startCheckout() {
+    if (!email) return
+    setLoading(true)
+    setError(null)
+    try {
+      const res  = await fetch('/api/stripe/create-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, plan, billing }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Erreur serveur')
+      setClientSecret(data.clientSecret)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur inconnue')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const stripeOptions = clientSecret ? {
+    clientSecret,
+    appearance: {
+      theme: 'night' as const,
+      variables: {
+        colorPrimary:    '#8b5cf6',
+        colorBackground: '#07070f',
+        colorText:       '#ffffff',
+        colorDanger:     '#ef4444',
+        borderRadius:    '12px',
+        fontFamily:      'system-ui, sans-serif',
+      },
+    },
+  } : undefined
+
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-6">
-      <div className="text-center max-w-md">
-        <div className="w-16 h-16 rounded-2xl bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 flex items-center justify-center mx-auto mb-6">
-          <svg className="w-8 h-8 text-[#8b5cf6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
-          </svg>
+    <div className="min-h-[80vh] flex items-center justify-center px-6 py-12">
+      <div className="w-full max-w-md">
+
+        {/* Header */}
+        <div className="text-center mb-8">
+          <Link href="/pricing" className="inline-flex items-center gap-1.5 text-xs text-[#475569] hover:text-[#94a3b8] mb-6 transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 17l-5-5m0 0l5-5m-5 5h12" />
+            </svg>
+            Retour aux offres
+          </Link>
+          <h1 className="text-2xl font-bold text-white mb-1">Finaliser l&apos;abonnement</h1>
+          <p className="text-[#475569] text-sm">Paiement sécurisé · Sans engagement pour le mensuel</p>
         </div>
 
-        <h1 className="text-2xl font-bold text-white mb-2">Paiement bientôt disponible</h1>
-        <p className="text-[#94a3b8] mb-2">
-          Plan <span className="text-white font-semibold">{meta.name}</span> — <span className="text-white font-semibold">${price}/mois</span>
-        </p>
-        <p className="text-sm text-[#475569] mb-8">
-          Le système de paiement est en cours de configuration. Contacte-nous pour t&apos;abonner manuellement.
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link
-            href="mailto:contact@weeral.io"
-            className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white font-medium text-sm hover:from-[#6d28d9] hover:to-[#7c3aed] transition-all"
-          >
-            Nous contacter →
-          </Link>
-          <Link
-            href="/pricing"
-            className="px-6 py-3 rounded-xl border border-[#1e1e3f] text-[#94a3b8] hover:border-[#3b3b6f] hover:text-white text-sm transition-all"
-          >
-            Voir les plans
-          </Link>
+        {/* Plan summary */}
+        <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-5 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-[#475569] uppercase tracking-wider mb-1">Plan choisi</p>
+              <p className="text-white font-semibold">{meta.name}</p>
+              <p className="text-xs text-[#475569] mt-0.5">
+                {billing === 'annual' ? `Facturé ${meta.annualTotal}€/an` : 'Facturé chaque mois'}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-white">{price}€</p>
+              <p className="text-xs text-[#475569]">/mois</p>
+              {billing === 'annual' && (
+                <p className="text-xs text-emerald-400 mt-0.5">-40% économisé</p>
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* Step 1 — Email */}
+        {!clientSecret && (
+          <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-6 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-2">
+                Adresse email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="vous@entreprise.com"
+                className="w-full bg-[#07070f] border border-[#1e1e3f] text-white rounded-xl px-4 py-3 text-sm placeholder-[#334155] focus:outline-none focus:border-[#8b5cf6]/60 focus:ring-1 focus:ring-[#8b5cf6]/30 transition-all"
+                onKeyDown={e => e.key === 'Enter' && startCheckout()}
+              />
+            </div>
+
+            {error && (
+              <div className="flex items-start gap-3 bg-red-950/30 border border-red-800/40 rounded-xl px-4 py-3">
+                <svg className="w-4 h-4 text-red-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <p className="text-sm text-red-400">{error}</p>
+              </div>
+            )}
+
+            <button
+              onClick={startCheckout}
+              disabled={loading || !email}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white font-semibold text-sm hover:from-[#6d28d9] hover:to-[#7c3aed] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Chargement...
+                </>
+              ) : (
+                'Continuer vers le paiement →'
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Step 2 — Payment */}
+        {clientSecret && stripeOptions && (
+          <div className="bg-[#0d0d1c] border border-[#8b5cf6]/30 rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <div className="w-5 h-5 rounded-full bg-[#8b5cf6] flex items-center justify-center">
+                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-sm text-[#94a3b8]">{email}</p>
+              <button onClick={() => setClientSecret(null)} className="ml-auto text-xs text-[#475569] hover:text-[#94a3b8] transition-colors">
+                Modifier
+              </button>
+            </div>
+            <Elements stripe={stripePromise} options={stripeOptions}>
+              <PaymentForm plan={plan} billing={billing} price={price} clientSecret={clientSecret} />
+            </Elements>
+          </div>
+        )}
+
       </div>
     </div>
   )

@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSESClient, verifyEmailIdentity } from '@/lib/ses'
 import { revalidatePath } from 'next/cache'
+import { getUserLimits } from '@/lib/credits'
 
 type State = { error: string } | { success: string } | null
 
@@ -12,6 +13,11 @@ export async function addContact(prevState: State, formData: FormData): Promise<
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
+
+  const limits = await getUserLimits(user.id)
+  if (limits.atContactsLimit) {
+    return { error: 'Limite de 100 contacts atteinte. Passez à un plan payant sur /pricing.' }
+  }
 
   const email = (formData.get('email') as string)?.toLowerCase().trim()
   if (!email) return { error: 'Email requis' }
@@ -39,6 +45,11 @@ export async function importContacts(prevState: State, formData: FormData): Prom
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
+
+  const limits = await getUserLimits(user.id)
+  if (limits.atContactsLimit) {
+    return { error: 'Limite de 100 contacts atteinte. Passez à un plan payant sur /pricing.' }
+  }
 
   const file = formData.get('csv') as File
   if (!file) return { error: 'Fichier requis' }

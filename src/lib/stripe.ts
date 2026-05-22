@@ -1,8 +1,11 @@
 export const PLAN_META = {
-  starter: { name: 'Starter', monthlyPrice: 197, annualPrice: 118, annualTotal: 1416 },
-  growth:  { name: 'Growth',  monthlyPrice: 247, annualPrice: 148, annualTotal: 1776 },
-  agency:  { name: 'Agency',  monthlyPrice: 345, annualPrice: 207, annualTotal: 2484 },
+  starter: { name: 'Starter', monthlyPrice: 147, annualPrice: 88,  annualTotal: 1056 },
+  growth:  { name: 'Growth',  monthlyPrice: 197, annualPrice: 118, annualTotal: 1416 },
+  agency:  { name: 'Agency',  monthlyPrice: 347, annualPrice: 208, annualTotal: 2496 },
 } as const
+
+export const FREE_CONTACTS_LIMIT = 100
+export const FREE_EMAILS_LIMIT   = 100
 
 export type PlanId = keyof typeof PLAN_META
 export type Billing = 'monthly' | 'annual'

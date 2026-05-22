@@ -9,9 +9,9 @@ const PLANS = [
     id: 'starter',
     name: 'Starter',
     tagline: 'Pour lancer votre prospection',
-    monthly: 197,
-    annual: 118,
-    annualTotal: 1416,
+    monthly: 147,
+    annual: 88,
+    annualTotal: 1056,
     popular: false,
     cta: 'Commencer',
     ctaHref: '/checkout?plan=starter',
@@ -35,9 +35,9 @@ const PLANS = [
     id: 'growth',
     name: 'Growth',
     tagline: 'Pour les équipes sales qui scalent',
-    monthly: 247,
-    annual: 148,
-    annualTotal: 1776,
+    monthly: 197,
+    annual: 118,
+    annualTotal: 1416,
     popular: true,
     cta: 'Commencer →',
     ctaHref: '/checkout?plan=growth',
@@ -63,9 +63,9 @@ const PLANS = [
     id: 'agency',
     name: 'Agency',
     tagline: 'Pour les agences et revendeurs',
-    monthly: 345,
-    annual: 207,
-    annualTotal: 2484,
+    monthly: 347,
+    annual: 208,
+    annualTotal: 2496,
     popular: false,
     cta: 'Nous contacter',
     ctaHref: '/checkout?plan=agency',
@@ -218,13 +218,13 @@ export default function PricingClient() {
                   >
                     <div className="flex items-end gap-1 mb-1">
                       <span className="text-5xl font-bold text-white tabular-nums">
-                        ${annual ? plan.annual : plan.monthly}
+                        {annual ? plan.annual : plan.monthly}€
                       </span>
                       <span className="text-base text-[#475569] pb-1.5">/mois</span>
                     </div>
                     {annual && (
                       <p className="text-xs text-[#475569]">
-                        Facturé <span className="text-[#94a3b8] font-medium">${plan.annualTotal.toLocaleString()}/an</span>
+                        Facturé <span className="text-[#94a3b8] font-medium">{plan.annualTotal.toLocaleString()}€/an</span>
                       </p>
                     )}
                     {!annual && (
