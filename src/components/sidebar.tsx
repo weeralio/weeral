@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logout } from '@/lib/auth/actions'
@@ -7,7 +8,10 @@ import { motion } from 'framer-motion'
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
 
-const NAV = [
+type NavItem = { label: string; href: string; icon: React.ReactNode; exact?: boolean; highlight?: boolean }
+type NavGroup = { section: string | null; items: NavItem[] }
+
+const NAV: NavGroup[] = [
   {
     section: null,
     items: [
@@ -123,7 +127,7 @@ export default function Sidebar({ email }: { email: string }) {
             )}
             <div className="space-y-0.5">
               {group.items.map((item) => {
-                const isActive = ('exact' in item && item.exact)
+                const isActive = item.exact
                   ? pathname === item.href
                   : pathname.startsWith(item.href)
 
