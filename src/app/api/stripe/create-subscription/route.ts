@@ -4,10 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, plan, billing } = await req.json() as {
+    const { email, plan, billing, promotionCodeId } = await req.json() as {
       email: string
       plan: PlanId
       billing: Billing
+      promotionCodeId?: string
     }
 
     if (!email || !plan || !billing) {
@@ -49,19 +50,50 @@ export async function POST(req: NextRequest) {
       customer: customer.id,
       items: [{ price: priceId }],
       payment_behavior: 'default_incomplete',
-      payment_settings: { save_default_payment_method: 'on_subscription' },
-      expand: ['latest_invoice.payment_intent'],
+      payment_settings: {
+        save_default_payment_method: 'on_subscription',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        payment_method_types: ['card', 'link'] as any, // excludes amazon_pay
+      },
       metadata: { user_id: user?.id ?? '', plan, billing },
+      ...(promotionCodeId ? { discounts: [{ promotion_code: promotionCodeId }] } : {}),
     })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const invoice       = subscription.latest_invoice as any
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const paymentIntent = (invoice?.payment_intent ?? invoice?.payment_intents?.data?.[0]) as any
+    const sub = subscription as any
+    let clientSecret: string | null = null
+
+    // Stripe 2025-01-27.acacia: invoice.payment_intent moved to InvoicePayment objects
+    const invoiceId = typeof sub.latest_invoice === 'string'
+      ? sub.latest_invoice
+      : sub.latest_invoice?.id
+
+    if (invoiceId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: payments } = await (stripe as any).invoicePayments.list({
+        invoice: invoiceId,
+        expand: ['data.payment.payment_intent'],
+      })
+      const firstPayment = payments?.[0]
+      const pi = firstPayment?.payment?.payment_intent
+      if (pi && typeof pi === 'object') {
+        clientSecret = pi.client_secret ?? null
+      } else if (typeof pi === 'string') {
+        const piObj = await stripe.paymentIntents.retrieve(pi)
+        clientSecret = piObj.client_secret ?? null
+      }
+    }
+
+    if (!clientSecret) {
+      return NextResponse.json(
+        { error: 'Impossible d\'initialiser le paiement. Contacte le support.' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({
       subscriptionId: subscription.id,
-      clientSecret: paymentIntent.client_secret,
+      clientSecret,
     })
   } catch (err: unknown) {
     console.error('[stripe/create-subscription]', err)

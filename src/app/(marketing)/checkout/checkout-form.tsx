@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { loadStripe } from '@stripe/stripe-js'
 import {
   Elements,
@@ -16,12 +16,13 @@ const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY 
 // ─── Inner payment form ───────────────────────────────────────────────────────
 
 function PaymentForm({
-  plan, billing, price, clientSecret,
+  plan, billing, price, clientSecret, discountedPrice,
 }: {
   plan: PlanId
   billing: Billing
   price: number
   clientSecret: string
+  discountedPrice: number | null
 }) {
   const stripe   = useStripe()
   const elements = useElements()
@@ -47,12 +48,15 @@ function PaymentForm({
     }
   }
 
+  const displayPrice = discountedPrice ?? price
+
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="bg-[#07070f] border border-[#1e1e3f] rounded-xl p-4">
         <PaymentElement
           options={{
             layout: 'tabs',
+            wallets: { applePay: 'auto', googlePay: 'auto' },
             fields: { billingDetails: { address: { country: 'never' } } },
           }}
         />
@@ -81,7 +85,7 @@ function PaymentForm({
             Traitement...
           </>
         ) : (
-          `Payer ${price}€/${billing === 'annual' ? 'mois' : 'mois'}`
+          `Payer ${displayPrice}€/mois`
         )}
       </button>
 
@@ -100,14 +104,57 @@ interface Props {
   userEmail: string | null
 }
 
+interface PromoInfo {
+  id: string
+  name: string
+  percentOff: number | null
+  amountOff: number | null
+}
+
 export default function CheckoutForm({ plan, billing, userEmail }: Props) {
   const meta  = PLAN_META[plan]
   const price = billing === 'annual' ? meta.annualPrice : meta.monthlyPrice
 
-  const [email,        setEmail]        = useState(userEmail ?? '')
-  const [clientSecret, setClientSecret] = useState<string | null>(null)
-  const [error,        setError]        = useState<string | null>(null)
-  const [loading,      setLoading]      = useState(false)
+  const [email,          setEmail]          = useState(userEmail ?? '')
+  const [clientSecret,   setClientSecret]   = useState<string | null>(null)
+  const [error,          setError]          = useState<string | null>(null)
+  const [loading,        setLoading]        = useState(false)
+
+  const [showPromo,      setShowPromo]      = useState(false)
+  const [promoCode,      setPromoCode]      = useState('')
+  const [promoInfo,      setPromoInfo]      = useState<PromoInfo | null>(null)
+  const [promoError,     setPromoError]     = useState<string | null>(null)
+  const [promoLoading,   setPromoLoading]   = useState(false)
+
+  function computeDiscounted(): number | null {
+    if (!promoInfo) return null
+    if (promoInfo.percentOff) return Math.round(price * (1 - promoInfo.percentOff / 100))
+    if (promoInfo.amountOff)  return Math.max(0, price - promoInfo.amountOff)
+    return null
+  }
+
+  const discountedPrice = computeDiscounted()
+
+  async function validatePromo() {
+    if (!promoCode.trim()) return
+    setPromoLoading(true)
+    setPromoError(null)
+    setPromoInfo(null)
+    try {
+      const res  = await fetch('/api/stripe/validate-promo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: promoCode }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Code invalide')
+      setPromoInfo(data)
+    } catch (err) {
+      setPromoError(err instanceof Error ? err.message : 'Code invalide')
+    } finally {
+      setPromoLoading(false)
+    }
+  }
 
   async function startCheckout() {
     if (!email) return
@@ -117,7 +164,12 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
       const res  = await fetch('/api/stripe/create-subscription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, plan, billing }),
+        body: JSON.stringify({
+          email,
+          plan,
+          billing,
+          promotionCodeId: promoInfo?.id ?? undefined,
+        }),
       })
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error ?? 'Erreur serveur')
@@ -171,16 +223,28 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
               </p>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-white">{price}€</p>
+              {discountedPrice !== null ? (
+                <>
+                  <p className="text-sm text-[#475569] line-through">{price}€</p>
+                  <p className="text-2xl font-bold text-emerald-400">{discountedPrice}€</p>
+                </>
+              ) : (
+                <p className="text-2xl font-bold text-white">{price}€</p>
+              )}
               <p className="text-xs text-[#475569]">/mois</p>
-              {billing === 'annual' && (
+              {billing === 'annual' && !discountedPrice && (
                 <p className="text-xs text-emerald-400 mt-0.5">-40% économisé</p>
+              )}
+              {promoInfo && discountedPrice !== null && (
+                <p className="text-xs text-emerald-400 mt-0.5">
+                  {promoInfo.percentOff ? `-${promoInfo.percentOff}%` : `-${promoInfo.amountOff}€`} appliqué
+                </p>
               )}
             </div>
           </div>
         </div>
 
-        {/* Step 1 — Email */}
+        {/* Step 1 — Email + Promo */}
         {!clientSecret && (
           <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-6 space-y-4">
             <div>
@@ -195,6 +259,65 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
                 className="w-full bg-[#07070f] border border-[#1e1e3f] text-white rounded-xl px-4 py-3 text-sm placeholder-[#334155] focus:outline-none focus:border-[#8b5cf6]/60 focus:ring-1 focus:ring-[#8b5cf6]/30 transition-all"
                 onKeyDown={e => e.key === 'Enter' && startCheckout()}
               />
+            </div>
+
+            {/* Promo code toggle */}
+            <div>
+              {!showPromo ? (
+                <button
+                  type="button"
+                  onClick={() => setShowPromo(true)}
+                  className="text-xs text-[#475569] hover:text-[#8b5cf6] transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  J&apos;ai un code promo
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">
+                    Code promo
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={promoCode}
+                      onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoInfo(null); setPromoError(null) }}
+                      placeholder="WEERAL20"
+                      className="flex-1 bg-[#07070f] border border-[#1e1e3f] text-white rounded-xl px-4 py-2.5 text-sm placeholder-[#334155] focus:outline-none focus:border-[#8b5cf6]/60 focus:ring-1 focus:ring-[#8b5cf6]/30 transition-all uppercase"
+                      onKeyDown={e => e.key === 'Enter' && validatePromo()}
+                    />
+                    <button
+                      type="button"
+                      onClick={validatePromo}
+                      disabled={promoLoading || !promoCode.trim()}
+                      className="px-4 py-2.5 rounded-xl border border-[#1e1e3f] text-sm text-[#94a3b8] hover:border-[#8b5cf6]/40 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap"
+                    >
+                      {promoLoading ? (
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      ) : 'Valider'}
+                    </button>
+                  </div>
+
+                  {promoInfo && (
+                    <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-950/30 border border-emerald-800/30 rounded-lg px-3 py-2">
+                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      Code <strong className="font-semibold">{promoInfo.name}</strong> appliqué —{' '}
+                      {promoInfo.percentOff ? `-${promoInfo.percentOff}%` : `-${promoInfo.amountOff}€`}
+                    </div>
+                  )}
+
+                  {promoError && (
+                    <p className="text-xs text-red-400">{promoError}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             {error && (
@@ -241,7 +364,13 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
               </button>
             </div>
             <Elements stripe={stripePromise} options={stripeOptions}>
-              <PaymentForm plan={plan} billing={billing} price={price} clientSecret={clientSecret} />
+              <PaymentForm
+                plan={plan}
+                billing={billing}
+                price={price}
+                clientSecret={clientSecret}
+                discountedPrice={discountedPrice}
+              />
             </Elements>
           </div>
         )}
