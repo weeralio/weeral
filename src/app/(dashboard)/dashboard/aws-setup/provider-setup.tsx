@@ -314,9 +314,9 @@ function BrevoGuide({ onSaved }: { onSaved: () => void }) {
         <Step num={1} title="Créer un compte Brevo">
           <p>Va sur <ExternalLink href="https://app.brevo.com/account/register">brevo.com</ExternalLink> et crée un compte gratuit (email + mot de passe, pas de carte requise).</p>
         </Step>
-        <Step num={2} title="Vérifier ton domaine">
+        <Step num={2} title="Vérifier tes domaines">
           <p>Dans Brevo : <strong className="text-white">Paramètres → Expéditeurs & IP → Domaines → Ajouter un domaine</strong></p>
-          <p>Entre ton domaine (ex: <code className="bg-[#1e1e3f] text-[#a78bfa] px-1.5 py-0.5 rounded text-xs">weeral.io</code>) et ajoute les enregistrements DNS fournis (DKIM + DMARC) chez ton registrar.</p>
+          <p>Tu peux ajouter <strong className="text-white">autant de domaines que tu veux</strong> — la clé API couvre tous les domaines vérifiés sur ton compte. Ajoute les enregistrements DNS fournis (DKIM + DMARC) chez ton registrar pour chacun.</p>
         </Step>
         <Step num={3} title="Obtenir ta clé API">
           <p>Dans Brevo : <strong className="text-white">Paramètres → Clés API → Générer une nouvelle clé API</strong></p>
@@ -337,9 +337,9 @@ function MailgunGuide({ onSaved }: { onSaved: () => void }) {
         <Step num={1} title="Créer un compte Mailgun">
           <p>Va sur <ExternalLink href="https://signup.mailgun.com/new/signup">mailgun.com</ExternalLink>. Une carte bancaire est requise pour la vérification (aucun débit si tu restes dans la limite gratuite).</p>
         </Step>
-        <Step num={2} title="Ajouter et vérifier ton domaine">
+        <Step num={2} title="Ajouter et vérifier tes domaines">
           <p>Dans Mailgun : <strong className="text-white">Sending → Domains → Add New Domain</strong></p>
-          <p>Ajoute les enregistrements DNS fournis (SPF, DKIM, CNAME) chez ton registrar, puis clique <strong className="text-white">Verify DNS Settings</strong>.</p>
+          <p>Tu peux ajouter <strong className="text-white">autant de domaines que tu veux</strong> — une seule clé API couvre tous. Ajoute les enregistrements DNS fournis (SPF, DKIM, CNAME) chez ton registrar pour chacun, puis clique <strong className="text-white">Verify DNS Settings</strong>.</p>
         </Step>
         <Step num={3} title="Créer une clé API">
           <p>Dans Mailgun : <strong className="text-white">Settings → API Keys → Create API Key</strong></p>
@@ -360,9 +360,9 @@ function SendgridGuide({ onSaved }: { onSaved: () => void }) {
         <Step num={1} title="Créer un compte SendGrid">
           <p>Va sur <ExternalLink href="https://signup.sendgrid.com/">sendgrid.com</ExternalLink>. Un numéro de téléphone est requis pour la vérification.</p>
         </Step>
-        <Step num={2} title="Authentifier ton domaine">
+        <Step num={2} title="Authentifier tes domaines">
           <p>Dans SendGrid : <strong className="text-white">Settings → Sender Authentication → Authenticate a Domain</strong></p>
-          <p>Suis les étapes et ajoute les enregistrements CNAME fournis chez ton registrar.</p>
+          <p>Tu peux authentifier <strong className="text-white">autant de domaines que tu veux</strong> — une seule clé API couvre tous. Ajoute les enregistrements CNAME fournis chez ton registrar pour chacun.</p>
         </Step>
         <Step num={3} title="Créer une clé API">
           <p>Dans SendGrid : <strong className="text-white">Settings → API Keys → Create API Key</strong></p>

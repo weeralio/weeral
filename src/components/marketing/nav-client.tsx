@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import { WeeralIcon } from '@/components/ui/weeral-logo'
 
 export default function NavClient({ isLoggedIn }: { isLoggedIn: boolean }) {
   const [scrolled, setScrolled] = useState(false)
@@ -25,12 +26,8 @@ export default function NavClient({ isLoggedIn }: { isLoggedIn: boolean }) {
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-violet-700 flex items-center justify-center shadow-[0_0_12px_rgba(139,92,246,0.5)] group-hover:shadow-[0_0_20px_rgba(139,92,246,0.7)] transition-all">
-            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <span className="font-semibold text-white">Weeral</span>
+          <WeeralIcon size={28} className="group-hover:shadow-[0_0_20px_rgba(139,92,246,0.5)] transition-all rounded-lg" />
+          <span className="font-bold text-white tracking-tight">Weeral</span>
         </Link>
 
         {/* Desktop nav */}

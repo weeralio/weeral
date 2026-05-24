@@ -2,6 +2,7 @@
 
 import React from 'react'
 import Link from 'next/link'
+import { WeeralIcon } from '@/components/ui/weeral-logo'
 import { usePathname } from 'next/navigation'
 import { logout } from '@/lib/auth/actions'
 import { motion } from 'framer-motion'
@@ -107,11 +108,7 @@ export default function Sidebar({ email }: { email: string }) {
       {/* Logo */}
       <div className="h-14 flex items-center px-4 border-b border-[#1e1e3f]">
         <Link href="/dashboard" className="flex items-center gap-2.5 group">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-[0_0_10px_rgba(139,92,246,0.4)] group-hover:shadow-[0_0_16px_rgba(139,92,246,0.6)] transition-all">
-            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-          </div>
+          <WeeralIcon size={28} />
           <span className="font-bold text-white tracking-tight">Weeral</span>
         </Link>
       </div>

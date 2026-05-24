@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { WeeralIcon } from '@/components/ui/weeral-logo'
 
 export default function MarketingFooter() {
   return (
@@ -7,15 +8,11 @@ export default function MarketingFooter() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-14">
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-6 h-6 rounded-md bg-gradient-to-br from-purple-500 to-violet-700 flex items-center justify-center">
-                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <span className="font-semibold text-white">Weeral</span>
+              <WeeralIcon size={24} />
+              <span className="font-bold text-white tracking-tight">Weeral</span>
             </div>
             <p className="text-sm text-[#475569] leading-relaxed">
-              Cold emailing B2B avec warmup automatique et isolation totale via BYOA AWS SES.
+              Cold emailing B2B avec warmup automatique, rédaction IA et analytics en temps réel.
             </p>
           </div>
 
