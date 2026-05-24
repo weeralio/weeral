@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { sendViaProvider } from '@/lib/mailer'
+import { unsubscribeUrl } from '@/lib/tokens'
 import { NextResponse } from 'next/server'
 
 // Appelé toutes les heures par Trigger.dev
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
       const subject = interpolate(campaign.subject, contact)
 
       try {
+        const contactId = (cc.contacts as unknown as { id: string })?.id ?? ''
         const messageId = await sendViaProvider(campaign.user_id, {
           from: identity!.email,
           fromName: identity!.display_name ?? identity!.email,
@@ -68,6 +70,8 @@ export async function POST(request: Request) {
           subject,
           htmlBody: html,
           textBody: campaign.body_text ? interpolate(campaign.body_text, contact) : undefined,
+          unsubscribeUrl: unsubscribeUrl(contactId, campaign.id),
+          tracking: { contactId, campaignId: campaign.id },
         })
 
         await Promise.all([

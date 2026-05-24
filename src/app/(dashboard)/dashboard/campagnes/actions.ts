@@ -150,6 +150,7 @@ export async function triggerSend(campaignId: string): Promise<{ sent?: number; 
         htmlBody: html,
         textBody: text,
         unsubscribeUrl: unsubscribeUrl(cc.contact_id, campaignId),
+        tracking: { contactId: cc.contact_id, campaignId },
       })
 
       await Promise.all([
