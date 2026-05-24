@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getSESClient, sendEmail } from '@/lib/ses'
+import { sendViaProvider } from '@/lib/mailer'
 import { NextResponse } from 'next/server'
 
 // Appelé toutes les heures par Trigger.dev (même schedule que /api/cron/send)
@@ -78,19 +78,11 @@ export async function POST(request: Request) {
       }
     }
 
-    // Send the email
-    let ses
-    try {
-      ses = await getSESClient(sequence.user_id)
-    } catch {
-      continue
-    }
-
     const html = interpolate(step.body_html, contact)
     const subject = interpolate(step.subject, contact)
 
     try {
-      await sendEmail(ses, {
+      await sendViaProvider(sequence.user_id, {
         from: identity.email,
         fromName: identity.display_name ?? identity.email,
         to: contact.email,

@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { getSESClient, sendEmail } from '@/lib/ses'
+import { sendViaProvider } from '@/lib/mailer'
 import { unsubscribeUrl } from '@/lib/tokens'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
@@ -130,13 +130,6 @@ export async function triggerSend(campaignId: string): Promise<{ sent?: number; 
     return { sent: 0 }
   }
 
-  let ses
-  try {
-    ses = await getSESClient(user.id)
-  } catch (err: unknown) {
-    return { error: err instanceof Error ? err.message : 'Erreur AWS' }
-  }
-
   let sent = 0
   const today = new Date().toISOString().split('T')[0]
 
@@ -149,7 +142,7 @@ export async function triggerSend(campaignId: string): Promise<{ sent?: number; 
     const text = campaign.body_text ? interpolate(campaign.body_text, contact) : undefined
 
     try {
-      const messageId = await sendEmail(ses, {
+      const messageId = await sendViaProvider(user.id, {
         from: identity!.email,
         fromName: identity!.display_name ?? identity!.email,
         to: contact.email,

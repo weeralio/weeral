@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getSESClient, sendEmail } from '@/lib/ses'
+import { sendViaProvider } from '@/lib/mailer'
 import { NextResponse } from 'next/server'
 
 // Appelé toutes les heures par Trigger.dev
@@ -51,13 +51,6 @@ export async function POST(request: Request) {
       continue
     }
 
-    let ses
-    try {
-      ses = await getSESClient(campaign.user_id)
-    } catch {
-      continue
-    }
-
     const today = new Date().toISOString().split('T')[0]
 
     for (const cc of pendingContacts) {
@@ -68,7 +61,7 @@ export async function POST(request: Request) {
       const subject = interpolate(campaign.subject, contact)
 
       try {
-        const messageId = await sendEmail(ses, {
+        const messageId = await sendViaProvider(campaign.user_id, {
           from: identity!.email,
           fromName: identity!.display_name ?? identity!.email,
           to: contact.email,

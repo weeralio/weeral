@@ -37,7 +37,6 @@ export async function POST(request: Request) {
       domains!inner(id, status, user_id)
     `)
     .in('warmup_status', ['waiting', 'resting', 'active', 'restricted', 'resuming'])
-    .eq('ses_verified', true)
 
   if (mbError) return NextResponse.json({ error: mbError.message }, { status: 500 })
 
