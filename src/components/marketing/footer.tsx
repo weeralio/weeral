@@ -42,16 +42,8 @@ export default function MarketingFooter() {
           </div>
         </div>
 
-        <div className="border-t border-[#1e1e3f] pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="border-t border-[#1e1e3f] pt-8 flex items-center justify-center">
           <p className="text-xs text-[#475569]">© {new Date().getFullYear()} Weeral. Tous droits réservés.</p>
-          <div className="flex items-center gap-2 text-xs text-[#475569]">
-            <span>Construit avec</span>
-            <span className="text-[#8b5cf6]">Next.js</span>
-            <span>·</span>
-            <span className="text-[#8b5cf6]">AWS SES</span>
-            <span>·</span>
-            <span className="text-[#8b5cf6]">Supabase</span>
-          </div>
         </div>
       </div>
     </footer>
