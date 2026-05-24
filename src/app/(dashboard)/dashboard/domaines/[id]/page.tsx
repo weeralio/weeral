@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import DomainActions from './domain-actions'
 import AddSenderIdentityForm from './add-sender-identity-form'
+import { getUserProvider } from '../actions'
 import WarmupChart from '@/components/charts/warmup-chart'
 import WarmupJourney from '@/components/dashboard/warmup-journey'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -48,6 +49,7 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
     { data: warmupLogs },
     { data: replyBoxes },
     { data: recentAlerts },
+    provider,
   ] = await Promise.all([
     supabase.from('domains').select('*').eq('id', id).eq('user_id', user!.id).single(),
     supabase.from('sender_identities')
@@ -62,6 +64,7 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
       .eq('dismissed', false)
       .order('created_at', { ascending: false })
       .limit(3),
+    getUserProvider(user!.id),
   ])
 
   if (!domain) notFound()
@@ -253,7 +256,7 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
           <CardDescription>Chaque adresse démarre son propre warmup au Jour 1.</CardDescription>
         </CardHeader>
         <CardContent>
-          <AddSenderIdentityForm domainId={id} domain={domain.domain} identities={identities} />
+          <AddSenderIdentityForm domainId={id} domain={domain.domain} identities={identities} provider={provider} />
         </CardContent>
       </Card>
 
@@ -277,7 +280,7 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
           <CardDescription>SPF, DKIM et DMARC à configurer chez ton hébergeur.</CardDescription>
         </CardHeader>
         <CardContent>
-          <DomainActions domainId={id} domain={domain.domain} />
+          <DomainActions domainId={id} domain={domain.domain} provider={provider} />
         </CardContent>
       </Card>
     </div>

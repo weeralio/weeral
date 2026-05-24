@@ -92,7 +92,7 @@ export default async function DomainesPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Connecter un domaine</CardTitle>
-          <CardDescription>Ajoute un domaine vérifié dans AWS SES pour commencer le warmup automatique.</CardDescription>
+          <CardDescription>Ajoute un domaine et configure le DNS chez ton registrar pour démarrer le warmup automatique.</CardDescription>
         </CardHeader>
         <CardContent>
           <AddDomainForm />

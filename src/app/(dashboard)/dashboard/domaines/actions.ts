@@ -6,6 +6,32 @@ import { revalidatePath } from 'next/cache'
 
 type State = { error: string } | { success: string } | null
 
+// ─── Provider detection ───────────────────────────────────────────────────────
+
+export type EmailProvider = 'aws' | 'brevo' | 'mailgun' | 'sendgrid' | null
+
+export async function getUserProvider(userId: string): Promise<EmailProvider> {
+  const supabase = await createClient()
+
+  const { data: awsCreds } = await supabase
+    .from('aws_credentials')
+    .select('id')
+    .eq('user_id', userId)
+    .single()
+
+  if (awsCreds) return 'aws'
+
+  const { data: config } = await supabase
+    .from('provider_configs')
+    .select('provider')
+    .eq('user_id', userId)
+    .single()
+
+  return (config?.provider as EmailProvider) ?? null
+}
+
+// ─── Domain CRUD ──────────────────────────────────────────────────────────────
+
 export async function addDomain(prevState: State, formData: FormData): Promise<State> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -29,6 +55,8 @@ export async function deleteDomain(id: string): Promise<void> {
   await supabase.from('domains').delete().eq('id', id)
   revalidatePath('/dashboard/domaines')
 }
+
+// ─── AWS SES: domain verification ────────────────────────────────────────────
 
 export async function initDomainVerification(domainId: string): Promise<{ tokens?: string[]; txtRecord?: string; error?: string }> {
   const supabase = await createClient()
@@ -73,11 +101,38 @@ export async function refreshDomainStatus(domainId: string): Promise<{ status?: 
   try {
     const ses = await getSESClient(user.id)
     const status = await getDomainVerificationStatus(ses, domain.domain)
+
+    // If SES says verified, mark domain as active in our DB
+    if (status === 'Success') {
+      await supabase.from('domains').update({ status: 'active' }).eq('id', domainId)
+      revalidatePath(`/dashboard/domaines/${domainId}`)
+    }
+
     return { status }
   } catch (err: unknown) {
     return { error: err instanceof Error ? err.message : 'Erreur SES' }
   }
 }
+
+// ─── Non-AWS: mark domain as ready ───────────────────────────────────────────
+
+export async function markDomainReady(domainId: string): Promise<{ error?: string; success?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { error } = await supabase
+    .from('domains')
+    .update({ status: 'active' })
+    .eq('id', domainId)
+    .eq('user_id', user.id)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/dashboard/domaines/${domainId}`)
+  return { success: 'Domaine marqué comme actif.' }
+}
+
+// ─── Sender identities ────────────────────────────────────────────────────────
 
 export async function addSenderIdentity(prevState: State, formData: FormData): Promise<State> {
   const supabase = await createClient()
@@ -100,12 +155,16 @@ export async function addSenderIdentity(prevState: State, formData: FormData): P
 
   const email = `${emailPrefix}@${domainData.domain}`
 
+  // Non-AWS providers don't need SES email verification — mark ready immediately
+  const provider = await getUserProvider(user.id)
+  const sesVerified = provider !== 'aws'
+
   const { error } = await supabase.from('sender_identities').insert({
     user_id: user.id,
     domain_id: domainId,
     email,
     display_name: displayName || null,
-    ses_verified: false,
+    ses_verified: sesVerified,
   })
 
   if (error) {
@@ -116,6 +175,8 @@ export async function addSenderIdentity(prevState: State, formData: FormData): P
   revalidatePath(`/dashboard/domaines/${domainId}`)
   return { success: `${email} ajouté.` }
 }
+
+// ─── AWS SES: verify sender email ────────────────────────────────────────────
 
 export async function verifySenderEmail(identityId: string, domainId: string): Promise<{ error?: string; success?: string }> {
   const supabase = await createClient()
@@ -134,6 +195,11 @@ export async function verifySenderEmail(identityId: string, domainId: string): P
   try {
     const ses = await getSESClient(user.id)
     await verifyEmailIdentity(ses, identity.email)
+
+    // Mark as verified in our DB
+    await supabase.from('sender_identities').update({ ses_verified: true }).eq('id', identityId)
+    revalidatePath(`/dashboard/domaines/${domainId}`)
+
     return { success: `Email de vérification envoyé à ${identity.email}` }
   } catch (err: unknown) {
     return { error: err instanceof Error ? err.message : 'Erreur SES' }
