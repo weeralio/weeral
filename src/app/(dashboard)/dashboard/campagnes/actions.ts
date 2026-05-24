@@ -185,6 +185,52 @@ function interpolate(template: string, contact: { first_name?: string | null; la
     .replace(/\{\{company\}\}/g, contact.company ?? '')
 }
 
+export async function sendTestEmail(campaignId: string, testEmail: string): Promise<{ error?: string; success?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  if (!testEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testEmail)) {
+    return { error: 'Adresse email invalide' }
+  }
+
+  const { data: campaign } = await supabase
+    .from('campaigns')
+    .select('*, sender_identities(email, display_name)')
+    .eq('id', campaignId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!campaign) return { error: 'Campagne introuvable' }
+
+  const identity = Array.isArray(campaign.sender_identities)
+    ? campaign.sender_identities[0]
+    : campaign.sender_identities
+
+  if (!identity?.email) return { error: 'Aucun expéditeur configuré sur cette campagne' }
+
+  // Interpolate with placeholder data
+  const html = campaign.body_html
+    .replace(/\{\{first_name\}\}/g, 'Prénom')
+    .replace(/\{\{last_name\}\}/g, 'Nom')
+    .replace(/\{\{company\}\}/g, 'Entreprise')
+
+  const subject = `[TEST] ${campaign.subject}`
+
+  try {
+    await sendViaProvider(user.id, {
+      from: identity.email,
+      fromName: identity.display_name ?? identity.email,
+      to: testEmail,
+      subject,
+      htmlBody: html,
+    })
+    return { success: `Email de test envoyé à ${testEmail}` }
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : 'Erreur lors de l\'envoi' }
+  }
+}
+
 export async function deleteCampaign(campaignId: string): Promise<void> {
   const supabase = await createClient()
   await supabase.from('campaigns').delete().eq('id', campaignId)

@@ -28,11 +28,11 @@ export default async function RepondeursPage() {
       </div>
 
       {/* Setup notice for reply detection */}
-      <div className="px-4 py-3 rounded-xl border border-amber-700/30 bg-amber-950/15">
-        <p className="text-xs font-medium text-amber-400 mb-1">⚙ Configuration SES requise pour la détection de réponses</p>
-        <p className="text-xs text-amber-200/70">
-          Pour détecter les réponses email, configure une <strong>SES Receipt Rule</strong> dans AWS qui redirige les emails entrants vers{' '}
-          <code className="bg-amber-950/40 px-1 rounded">/api/webhooks/ses</code>. Les déclencheurs &quot;ouverture&quot; et &quot;clic&quot; fonctionnent automatiquement via les webhooks existants.
+      <div className="px-4 py-3 rounded-xl border border-[#1e1e3f] bg-[#07070f]">
+        <p className="text-xs font-medium text-[#94a3b8] mb-1">ℹ Déclencheurs disponibles</p>
+        <p className="text-xs text-[#475569]">
+          Les déclencheurs <strong className="text-[#94a3b8]">ouverture</strong> et <strong className="text-[#94a3b8]">clic</strong> fonctionnent automatiquement via le tracking intégré.
+          La détection de <strong className="text-[#94a3b8]">réponse</strong> nécessite une configuration webhook côté expéditeur (ex : SES Receipt Rule, Mailgun inbound routes).
         </p>
       </div>
 
