@@ -1,76 +1,138 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSESClient, getSendQuota } from '@/lib/ses'
+import Link from 'next/link'
 import AwsCredentialsForm from './aws-credentials-form'
 
 export default async function ParametresPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
 
-  const { data: creds } = await supabase
+  // AWS credentials
+  const { data: awsCreds } = await supabase
     .from('aws_credentials')
     .select('access_key_id, aws_region, ses_in_production')
-    .eq('user_id', user!.id)
+    .eq('user_id', user.id)
     .single()
 
+  // Other providers
+  const { data: providerConfigs } = await supabase
+    .from('provider_configs')
+    .select('provider')
+    .eq('user_id', user.id)
+
+  const configuredProviders = providerConfigs?.map(p => p.provider) ?? []
+
   let quota = null
-  if (creds) {
+  if (awsCreds) {
     try {
-      const ses = await getSESClient(user!.id)
+      const ses = await getSESClient(user.id)
       quota = await getSendQuota(ses)
-      // Mise à jour automatique du statut production
       const isProduction = (quota.max24h ?? 0) > 200
-      if (isProduction !== creds.ses_in_production) {
-        await supabase.from('aws_credentials').update({ ses_in_production: isProduction }).eq('user_id', user!.id)
+      if (isProduction !== awsCreds.ses_in_production) {
+        await supabase.from('aws_credentials').update({ ses_in_production: isProduction }).eq('user_id', user.id)
       }
-    } catch {
-      // Credentials invalides ou pas de connexion
-    }
+    } catch { /* credentials invalides */ }
   }
 
   const isProduction = quota ? quota.max24h > 200 : false
 
-  return (
-    <div className="max-w-xl">
-      <h1 className="text-2xl font-semibold text-gray-900 mb-1">Paramètres</h1>
-      <p className="text-sm text-gray-500 mb-8">Configure ton compte AWS SES pour envoyer des emails.</p>
+  const PROVIDER_LABELS: Record<string, string> = {
+    brevo: 'Brevo',
+    mailgun: 'Mailgun',
+    sendgrid: 'SendGrid',
+  }
 
-      {/* Statut SES */}
+  return (
+    <div className="max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-white">Paramètres</h1>
+        <p className="text-sm text-[#475569] mt-1">Gère ton compte et tes expéditeurs email.</p>
+      </div>
+
+      {/* Expéditeurs actifs */}
+      <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-white">Expéditeurs configurés</h2>
+          <Link href="/dashboard/aws-setup" className="text-xs text-[#8b5cf6] hover:text-[#a78bfa] transition-colors">
+            + Ajouter / modifier
+          </Link>
+        </div>
+
+        {!awsCreds && configuredProviders.length === 0 ? (
+          <div className="text-center py-6">
+            <p className="text-sm text-[#475569] mb-3">Aucun expéditeur configuré.</p>
+            <Link href="/dashboard/aws-setup" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white text-sm font-semibold">
+              Choisir un expéditeur →
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {awsCreds && (
+              <div className="flex items-center justify-between bg-[#07070f] border border-[#1e1e3f] rounded-xl px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span className="text-sm text-white font-medium">AWS SES</span>
+                  <span className="text-xs text-[#475569]">{awsCreds.aws_region}</span>
+                </div>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isProduction ? 'bg-emerald-950/50 text-emerald-400 border border-emerald-800/30' : 'bg-amber-950/50 text-amber-400 border border-amber-800/30'}`}>
+                  {isProduction ? 'Production' : 'Sandbox'}
+                </span>
+              </div>
+            )}
+            {configuredProviders.map(p => (
+              <div key={p} className="flex items-center justify-between bg-[#07070f] border border-[#1e1e3f] rounded-xl px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span className="text-sm text-white font-medium">{PROVIDER_LABELS[p] ?? p}</span>
+                </div>
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-950/50 text-emerald-400 border border-emerald-800/30">
+                  Configuré
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Quota AWS si connecté */}
       {quota && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-4">
-          <h2 className="text-base font-medium text-gray-900 mb-4">Statut SES</h2>
-          <div className="grid grid-cols-3 gap-4 text-sm">
-            <div>
-              <p className="text-gray-500 mb-1">Mode</p>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isProduction ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
-                {isProduction ? 'Production' : 'Sandbox'}
-              </span>
-            </div>
-            <div>
-              <p className="text-gray-500 mb-1">Quota 24h</p>
-              <p className="font-semibold text-gray-900">{quota.max24h.toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 mb-1">Envoyés (24h)</p>
-              <p className="font-semibold text-gray-900">{quota.sent24h.toLocaleString()}</p>
-            </div>
+        <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-6">
+          <h2 className="text-base font-semibold text-white mb-4">Quota AWS SES</h2>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: 'Mode', value: isProduction ? 'Production' : 'Sandbox', highlight: true },
+              { label: 'Quota 24h', value: quota.max24h.toLocaleString() },
+              { label: 'Envoyés (24h)', value: quota.sent24h.toLocaleString() },
+            ].map(s => (
+              <div key={s.label} className="bg-[#07070f] border border-[#1e1e3f] rounded-xl p-3 text-center">
+                <p className="text-xs text-[#475569] mb-1">{s.label}</p>
+                {s.highlight ? (
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isProduction ? 'bg-emerald-950/50 text-emerald-400' : 'bg-amber-950/50 text-amber-400'}`}>
+                    {s.value}
+                  </span>
+                ) : (
+                  <p className="text-sm font-semibold text-white">{s.value}</p>
+                )}
+              </div>
+            ))}
           </div>
           {!isProduction && (
-            <p className="mt-4 text-xs text-yellow-700 bg-yellow-50 px-3 py-2 rounded-lg">
-              Mode sandbox actif — tu ne peux envoyer qu&apos;à des adresses vérifiées.
-              Demande l&apos;accès production dans AWS Console → SES → Account dashboard.
+            <p className="mt-4 text-xs text-amber-400 bg-amber-950/20 border border-amber-800/30 px-3 py-2 rounded-lg">
+              Mode sandbox — tu ne peux envoyer qu&apos;à des adresses vérifiées. Demande l&apos;accès production dans AWS Console → SES → Account dashboard.
             </p>
           )}
         </div>
       )}
 
-      {/* Credentials */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6">
-        <h2 className="text-base font-medium text-gray-900 mb-1">Credentials AWS SES</h2>
-        <p className="text-sm text-gray-500 mb-6">
-          Tes clés sont chiffrées (AES-256) avant stockage. Crée un utilisateur IAM dédié avec uniquement les permissions SES.
-        </p>
-        <AwsCredentialsForm existingRegion={creds?.aws_region ?? 'eu-west-1'} hasCredentials={!!creds} />
-      </div>
+      {/* Modifier credentials AWS */}
+      {awsCreds && (
+        <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-6">
+          <h2 className="text-base font-semibold text-white mb-1">Credentials AWS SES</h2>
+          <p className="text-xs text-[#475569] mb-5">Chiffrées AES-256-GCM avant stockage.</p>
+          <AwsCredentialsForm existingRegion={awsCreds.aws_region ?? 'eu-west-1'} hasCredentials={!!awsCreds} />
+        </div>
+      )}
     </div>
   )
 }

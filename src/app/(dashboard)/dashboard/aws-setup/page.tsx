@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import AwsSetupGuide from './guide'
+import ProviderSetup from './provider-setup'
 
 export default async function AwsSetupPage() {
   const supabase = await createClient()
@@ -16,13 +16,13 @@ export default async function AwsSetupPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Configuration AWS SES</h1>
+        <h1 className="text-2xl font-bold text-white">Fournisseur d&apos;envoi</h1>
         <p className="text-sm text-[#475569] mt-1">
-          Suis ce guide étape par étape pour connecter ton compte AWS et commencer à envoyer des emails.
+          Choisis ton fournisseur email. Utilise le calculateur pour estimer ton coût selon ton volume.
         </p>
       </div>
-      <AwsSetupGuide
-        hasCredentials={!!creds}
+      <ProviderSetup
+        hasAwsCredentials={!!creds}
         existingRegion={creds?.aws_region ?? 'eu-west-1'}
       />
     </div>
