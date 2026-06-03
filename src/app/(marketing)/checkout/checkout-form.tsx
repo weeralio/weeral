@@ -17,13 +17,14 @@ const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY 
 // ─── Inner payment form ───────────────────────────────────────────────────────
 
 function PaymentForm({
-  plan, billing, price, clientSecret, discountedPrice,
+  plan, billing, price, clientSecret, discountedPrice, subscriptionId,
 }: {
   plan: PlanId
   billing: Billing
   price: number
   clientSecret: string
   discountedPrice: number | null
+  subscriptionId: string
 }) {
   const stripe   = useStripe()
   const elements = useElements()
@@ -41,7 +42,7 @@ function PaymentForm({
       const { error: stripeError } = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          return_url: `${window.location.origin}/checkout/success?plan=${plan}&billing=${billing}`,
+          return_url: `${window.location.origin}/checkout/success?plan=${plan}&billing=${billing}&sub=${subscriptionId}`,
         },
       })
       // If no stripeError, Stripe is redirecting — nothing to do here
@@ -153,6 +154,7 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
 
   const [email,          setEmail]          = useState(userEmail ?? '')
   const [clientSecret,   setClientSecret]   = useState<string | null>(null)
+  const [subscriptionId, setSubscriptionId] = useState<string>('')
   const [error,          setError]          = useState<string | null>(null)
   const [loading,        setLoading]        = useState(false)
 
@@ -213,6 +215,7 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
         router.push(`/checkout/success?plan=${plan}&billing=${billing}`)
         return
       }
+      setSubscriptionId(data.subscriptionId)
       setClientSecret(data.clientSecret)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
@@ -410,6 +413,7 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
                 price={price}
                 clientSecret={clientSecret}
                 discountedPrice={discountedPrice}
+                subscriptionId={subscriptionId}
               />
             </Elements>
           </div>
