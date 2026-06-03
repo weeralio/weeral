@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
       code: code.trim().toUpperCase(),
       active: true,
       limit: 1,
-      expand: ['data.coupon'],
+      expand: ['data.promotion.coupon'],
     })
 
     const promoCode = result.data[0]
@@ -19,9 +19,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Code invalide ou expiré' }, { status: 404 })
     }
 
-    // coupon may come back as a string ID even with expand if the SDK version
-    // doesn't honour it — retrieve it explicitly in that case
-    const couponOrId = promoCode.coupon
+    // SDK v22: coupon lives at promoCode.promotion.coupon (string ID or expanded object)
+    const couponOrId = promoCode.promotion?.coupon
     const coupon = !couponOrId
       ? null
       : typeof couponOrId === 'string'
