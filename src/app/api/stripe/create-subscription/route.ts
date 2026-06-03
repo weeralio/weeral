@@ -69,6 +69,12 @@ export async function POST(req: NextRequest) {
       : sub.latest_invoice?.id
 
     if (invoiceId) {
+      // Check for 0€ invoice (100% promo applied) — no payment intent is generated
+      const invoice = await stripe.invoices.retrieve(invoiceId)
+      if ((invoice.amount_due ?? 0) === 0) {
+        return NextResponse.json({ subscriptionId: subscription.id, free: true })
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: payments } = await (stripe as any).invoicePayments.list({
         invoice: invoiceId,
