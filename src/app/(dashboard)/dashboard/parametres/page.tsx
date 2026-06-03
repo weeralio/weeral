@@ -5,6 +5,8 @@ import { PLAN_META } from '@/lib/stripe'
 import Link from 'next/link'
 import AwsCredentialsForm from './aws-credentials-form'
 import SubscriptionSection from './subscription-section'
+import ProviderManage from './provider-manage'
+import type { ProviderType } from '../aws-setup/provider-actions'
 
 export default async function ParametresPage() {
   const supabase = await createClient()
@@ -52,12 +54,6 @@ export default async function ParametresPage() {
   }
 
   const isProduction = quota ? quota.max24h > 200 : false
-
-  const PROVIDER_LABELS: Record<string, string> = {
-    brevo: 'Brevo',
-    mailgun: 'Mailgun',
-    sendgrid: 'SendGrid',
-  }
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -128,17 +124,7 @@ export default async function ParametresPage() {
                 </span>
               </div>
             )}
-            {configuredProviders.map(p => (
-              <div key={p} className="flex items-center justify-between bg-[#07070f] border border-[#1e1e3f] rounded-xl px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="text-sm text-white font-medium">{PROVIDER_LABELS[p] ?? p}</span>
-                </div>
-                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-950/50 text-emerald-400 border border-emerald-800/30">
-                  Configuré
-                </span>
-              </div>
-            ))}
+            <ProviderManage providers={configuredProviders as ProviderType[]} />
           </div>
         )}
       </div>

@@ -79,6 +79,20 @@ export async function saveProviderApiKey(
   return { success: `Connexion ${provider} vérifiée et sauvegardée.` }
 }
 
+export async function deleteProviderConfig(provider: ProviderType): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+  await supabase
+    .from('provider_configs')
+    .delete()
+    .eq('user_id', user.id)
+    .eq('provider', provider)
+  revalidatePath('/dashboard/parametres')
+  revalidatePath('/dashboard/aws-setup')
+  return {}
+}
+
 export async function getProviderConfig(provider: ProviderType): Promise<{ configured: boolean }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

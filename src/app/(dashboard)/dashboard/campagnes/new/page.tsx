@@ -19,18 +19,27 @@ export default async function NewCampaignPage() {
     .eq('unsubscribed', false)
 
   return (
-    <div className="max-w-2xl">
-      <div className="mb-6">
-        <Link href="/dashboard/campagnes" className="text-sm text-gray-500 hover:text-gray-900">
-          ← Campagnes
+    <div className="max-w-2xl space-y-6">
+      <div>
+        <Link
+          href="/dashboard/campagnes"
+          className="inline-flex items-center gap-1.5 text-sm text-[#475569] hover:text-[#94a3b8] transition-colors mb-3"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Campagnes
         </Link>
-        <h1 className="text-2xl font-semibold text-gray-900 mt-2">Nouvelle campagne</h1>
+        <h1 className="text-2xl font-bold text-white">Nouvelle campagne</h1>
+        <p className="text-sm text-[#475569] mt-1">Configure et lance ta prochaine séquence de cold email.</p>
       </div>
 
       {!identities?.length ? (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-sm text-yellow-800">
+        <div className="bg-amber-950/20 border border-amber-800/30 rounded-xl p-5 text-sm text-amber-400">
           Tu dois d&apos;abord ajouter un domaine et une adresse d&apos;envoi dans{' '}
-          <Link href="/dashboard/domaines" className="font-medium underline">Domaines</Link>.
+          <Link href="/dashboard/domaines" className="font-medium underline underline-offset-2 hover:text-amber-300 transition-colors">
+            Domaines
+          </Link>.
         </div>
       ) : (
         <NewCampaignForm identities={identities} contactCount={contactCount ?? 0} />
