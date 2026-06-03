@@ -162,19 +162,35 @@ export async function deleteStep(stepId: string, sequenceId: string): Promise<{ 
 
 export async function enrollContacts(
   sequenceId: string,
-  _contactIds: string[], // ignored — we fetch all active contacts server-side
+  listIds: string[],
   senderIdentityId: string,
 ): Promise<{ error?: string; enrolled?: number }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
 
-  // Fetch all active contacts for this user
-  const { data: contacts } = await supabase
-    .from('contacts')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('unsubscribed', false)
+  // Fetch contacts filtered by lists (or all active contacts if no lists selected)
+  let contacts: { id: string }[] | null = null
+  if (listIds.length > 0) {
+    const { data: members } = await supabase
+      .from('contact_list_members')
+      .select('contact_id, contacts!inner(id, unsubscribed)')
+      .in('list_id', listIds)
+      .eq('contacts.user_id', user.id)
+      .eq('contacts.unsubscribed', false)
+    const seen = new Set<string>()
+    contacts = []
+    for (const m of members ?? []) {
+      if (!seen.has(m.contact_id)) { seen.add(m.contact_id); contacts.push({ id: m.contact_id }) }
+    }
+  } else {
+    const { data } = await supabase
+      .from('contacts')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('unsubscribed', false)
+    contacts = data
+  }
 
   if (!contacts?.length) return { error: 'Aucun contact actif trouvé' }
 

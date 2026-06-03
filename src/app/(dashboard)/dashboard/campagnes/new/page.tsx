@@ -6,17 +6,38 @@ export default async function NewCampaignPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: identities } = await supabase
-    .from('sender_identities')
-    .select('id, email, display_name, domains(domain)')
-    .eq('user_id', user!.id)
-    .order('created_at', { ascending: false })
+  const [
+    { data: identities },
+    { count: contactCount },
+    { data: rawLists },
+    { data: members },
+  ] = await Promise.all([
+    supabase
+      .from('sender_identities')
+      .select('id, email, display_name, domains(domain)')
+      .eq('user_id', user!.id)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('contacts')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user!.id)
+      .eq('unsubscribed', false),
+    supabase
+      .from('contact_lists')
+      .select('id, name, color')
+      .eq('user_id', user!.id)
+      .order('name'),
+    supabase
+      .from('contact_list_members')
+      .select('list_id'),
+  ])
 
-  const { count: contactCount } = await supabase
-    .from('contacts')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user!.id)
-    .eq('unsubscribed', false)
+  // Build per-list contact counts
+  const countMap: Record<string, number> = {}
+  for (const m of members ?? []) {
+    countMap[m.list_id] = (countMap[m.list_id] ?? 0) + 1
+  }
+  const lists = (rawLists ?? []).map(l => ({ ...l, count: countMap[l.id] ?? 0 }))
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -42,7 +63,11 @@ export default async function NewCampaignPage() {
           </Link>.
         </div>
       ) : (
-        <NewCampaignForm identities={identities} contactCount={contactCount ?? 0} />
+        <NewCampaignForm
+          identities={identities}
+          contactCount={contactCount ?? 0}
+          lists={lists}
+        />
       )}
     </div>
   )

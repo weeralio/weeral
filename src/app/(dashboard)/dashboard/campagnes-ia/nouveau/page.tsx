@@ -8,7 +8,12 @@ export default async function NewIACampaignPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: domains }, { data: contacts }] = await Promise.all([
+  const [
+    { data: domains },
+    { count: totalCount },
+    { data: rawLists },
+    { data: members },
+  ] = await Promise.all([
     supabase
       .from('domains')
       .select('id, domain, status')
@@ -17,12 +22,24 @@ export default async function NewIACampaignPage() {
       .order('created_at', { ascending: false }),
     supabase
       .from('contacts')
-      .select('id, email, first_name, last_name')
+      .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .eq('unsubscribed', false)
-      .order('created_at', { ascending: false })
-      .limit(5000),
+      .eq('unsubscribed', false),
+    supabase
+      .from('contact_lists')
+      .select('id, name, color')
+      .eq('user_id', user.id)
+      .order('name'),
+    supabase
+      .from('contact_list_members')
+      .select('list_id'),
   ])
+
+  const countMap: Record<string, number> = {}
+  for (const m of members ?? []) {
+    countMap[m.list_id] = (countMap[m.list_id] ?? 0) + 1
+  }
+  const lists = (rawLists ?? []).map(l => ({ ...l, count: countMap[l.id] ?? 0 }))
 
   return (
     <div className="max-w-xl space-y-6">
@@ -39,7 +56,8 @@ export default async function NewIACampaignPage() {
 
       <NewCampaignWizard
         domains={domains ?? []}
-        contacts={contacts ?? []}
+        totalCount={totalCount ?? 0}
+        lists={lists}
       />
     </div>
   )

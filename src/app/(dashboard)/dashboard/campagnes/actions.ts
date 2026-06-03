@@ -17,6 +17,8 @@ export async function createCampaign(prevState: State, formData: FormData): Prom
   const senderIdentityId = formData.get('sender_identity_id') as string
   const subject = formData.get('subject') as string
   const bodyRaw = formData.get('body_html') as string
+  const listIdsRaw = formData.get('list_ids') as string | null
+  const listIds: string[] = listIdsRaw ? JSON.parse(listIdsRaw) : []
 
   if (!name || !senderIdentityId || !subject || !bodyRaw) {
     return { error: 'Tous les champs obligatoires doivent être remplis' }
@@ -45,12 +47,24 @@ export async function createCampaign(prevState: State, formData: FormData): Prom
 
   if (error) return { error: error.message }
 
-  // Ajouter tous les contacts actifs de l'utilisateur
-  const { data: contacts } = await supabase
-    .from('contacts')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('unsubscribed', false)
+  // Résoudre les contacts selon les listes sélectionnées
+  let contacts: { id: string }[] | null = null
+  if (listIds.length > 0) {
+    const { data: members } = await supabase
+      .from('contact_list_members')
+      .select('contact_id, contacts!inner(id, unsubscribed)')
+      .in('list_id', listIds)
+      .eq('contacts.user_id', user.id)
+      .eq('contacts.unsubscribed', false)
+    contacts = [...new Map((members ?? []).map(m => [m.contact_id, { id: m.contact_id }])).values()]
+  } else {
+    const { data } = await supabase
+      .from('contacts')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('unsubscribed', false)
+    contacts = data
+  }
 
   if (contacts?.length) {
     await supabase.from('campaign_contacts').insert(

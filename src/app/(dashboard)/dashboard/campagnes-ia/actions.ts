@@ -102,9 +102,32 @@ export async function createIACampaign(formData: FormData): Promise<{ error?: st
   const name = formData.get('name') as string
   const goal = formData.get('goal') as string
   const domainId = formData.get('domain_id') as string
-  const contactIds = JSON.parse((formData.get('contact_ids') as string) ?? '[]') as string[]
+  const listIdsRaw = formData.get('list_ids') as string | null
+  const listIds: string[] = listIdsRaw ? JSON.parse(listIdsRaw) : []
 
   if (!name || !domainId) return { error: 'Nom et domaine obligatoires' }
+
+  // Résoudre les contacts selon les listes sélectionnées
+  let contactIds: string[] = []
+  if (listIds.length > 0) {
+    const { data: members } = await supabase
+      .from('contact_list_members')
+      .select('contact_id, contacts!inner(id, unsubscribed)')
+      .in('list_id', listIds)
+      .eq('contacts.user_id', user.id)
+      .eq('contacts.unsubscribed', false)
+    const seen = new Set<string>()
+    for (const m of members ?? []) {
+      if (!seen.has(m.contact_id)) { seen.add(m.contact_id); contactIds.push(m.contact_id) }
+    }
+  } else {
+    const { data } = await supabase
+      .from('contacts')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('unsubscribed', false)
+    contactIds = (data ?? []).map(c => c.id)
+  }
 
   const { data: campaign, error } = await supabase
     .from('ia_campaigns')

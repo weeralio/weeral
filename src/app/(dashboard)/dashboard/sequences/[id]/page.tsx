@@ -22,14 +22,26 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
     { data: steps },
     { data: enrollments },
     { data: identities },
+    { count: totalCount },
+    { data: rawLists },
+    { data: members },
   ] = await Promise.all([
     supabase.from('sequences').select('*').eq('id', id).eq('user_id', user!.id).single(),
     supabase.from('sequence_steps').select('*').eq('sequence_id', id).order('step_number'),
     supabase.from('sequence_enrollments').select('status').eq('sequence_id', id),
     supabase.from('sender_identities').select('id, email, display_name').eq('user_id', user!.id),
+    supabase.from('contacts').select('*', { count: 'exact', head: true }).eq('user_id', user!.id).eq('unsubscribed', false),
+    supabase.from('contact_lists').select('id, name, color').eq('user_id', user!.id).order('name'),
+    supabase.from('contact_list_members').select('list_id'),
   ])
 
   if (!sequence) notFound()
+
+  const countMap: Record<string, number> = {}
+  for (const m of members ?? []) {
+    countMap[m.list_id] = (countMap[m.list_id] ?? 0) + 1
+  }
+  const lists = (rawLists ?? []).map(l => ({ ...l, count: countMap[l.id] ?? 0 }))
 
   const stats = {
     active:    enrollments?.filter(e => e.status === 'active').length ?? 0,
@@ -78,7 +90,7 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
           <CardDescription>Sélectionne l&apos;adresse d&apos;envoi et lance la séquence sur tous tes contacts actifs.</CardDescription>
         </CardHeader>
         <CardContent>
-          <EnrollForm sequenceId={id} identities={identities ?? []} />
+          <EnrollForm sequenceId={id} identities={identities ?? []} lists={lists} totalCount={totalCount ?? 0} />
         </CardContent>
       </Card>
 

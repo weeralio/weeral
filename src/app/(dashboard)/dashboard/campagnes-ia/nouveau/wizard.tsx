@@ -3,23 +3,28 @@
 import { useState, useTransition } from 'react'
 import { createIACampaign } from '../actions'
 import { Card, CardContent } from '@/components/ui/card'
+import ListPicker, { type ContactList } from '@/components/dashboard/list-picker'
 
 interface Domain { id: string; domain: string; status: string }
-interface Contact { id: string; email: string; first_name: string | null; last_name: string | null }
 
 interface Props {
   domains: Domain[]
-  contacts: Contact[]
+  totalCount: number
+  lists: ContactList[]
 }
 
-export default function NewCampaignWizard({ domains, contacts }: Props) {
-  const [step, setStep] = useState(1)
-  const [name, setName] = useState('')
-  const [goal, setGoal] = useState('')
+export default function NewCampaignWizard({ domains, totalCount, lists }: Props) {
+  const [step, setStep]         = useState(1)
+  const [name, setName]         = useState('')
+  const [goal, setGoal]         = useState('')
   const [domainId, setDomainId] = useState(domains[0]?.id ?? '')
-  const [useAll, setUseAll] = useState(true)
-  const [error, setError] = useState('')
+  const [listIds, setListIds]   = useState<string[]>([])
+  const [error, setError]       = useState('')
   const [isPending, startTransition] = useTransition()
+
+  const selectedCount = listIds.length === 0
+    ? totalCount
+    : lists.filter(l => listIds.includes(l.id)).reduce((s, l) => s + l.count, 0)
 
   function submit() {
     setError('')
@@ -27,7 +32,7 @@ export default function NewCampaignWizard({ domains, contacts }: Props) {
     fd.append('name', name)
     fd.append('goal', goal)
     fd.append('domain_id', domainId)
-    fd.append('contact_ids', JSON.stringify(useAll ? contacts.map(c => c.id) : []))
+    fd.append('list_ids', JSON.stringify(listIds))
     startTransition(async () => {
       const result = await createIACampaign(fd)
       if (result?.error) setError(result.error)
@@ -54,7 +59,7 @@ export default function NewCampaignWizard({ domains, contacts }: Props) {
           </div>
         ))}
         <span className="text-xs text-[#475569] ml-2">
-          {step === 1 ? 'Infos campagne' : step === 2 ? 'Domaine' : 'Contacts'}
+          {step === 1 ? 'Infos campagne' : step === 2 ? 'Domaine d\'envoi' : 'Audience'}
         </span>
       </div>
 
@@ -100,7 +105,8 @@ export default function NewCampaignWizard({ domains, contacts }: Props) {
                 <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">Domaine d&apos;envoi *</label>
                 {domains.length === 0 ? (
                   <div className="px-4 py-8 text-center rounded-xl border border-[#1e1e3f] text-sm text-[#475569]">
-                    Aucun domaine configuré. <a href="/dashboard/domaines" className="text-violet-400 hover:text-violet-300">Ajouter un domaine →</a>
+                    Aucun domaine configuré.{' '}
+                    <a href="/dashboard/domaines" className="text-violet-400 hover:text-violet-300">Ajouter un domaine →</a>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -142,40 +148,20 @@ export default function NewCampaignWizard({ domains, contacts }: Props) {
             </>
           )}
 
-          {/* ── Step 3: Contacts ────────────────────────────────────────────── */}
+          {/* ── Step 3: Audience ────────────────────────────────────────────── */}
           {step === 3 && (
             <>
               <div className="space-y-3">
-                <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">Contacts à inclure</label>
-                <button
-                  type="button"
-                  onClick={() => setUseAll(true)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm transition-all ${
-                    useAll ? 'border-violet-500/50 bg-violet-950/20 text-white' : 'border-[#1e1e3f] text-[#94a3b8] hover:border-[#3b3b6f]'
-                  }`}
-                >
-                  <div>
-                    <p className="font-medium text-left">Tous mes contacts actifs</p>
-                    <p className="text-xs text-[#475569] text-left mt-0.5">{contacts.length.toLocaleString()} contact{contacts.length !== 1 ? 's' : ''} non désabonnés</p>
-                  </div>
-                  {useAll && <span className="text-violet-400 text-xs">✓ Sélectionné</span>}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUseAll(false)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm transition-all ${
-                    !useAll ? 'border-violet-500/50 bg-violet-950/20 text-white' : 'border-[#1e1e3f] text-[#94a3b8] hover:border-[#3b3b6f]'
-                  }`}
-                >
-                  <div>
-                    <p className="font-medium text-left">Aucun contact pour l&apos;instant</p>
-                    <p className="text-xs text-[#475569] text-left mt-0.5">Tu pourras en ajouter depuis la campagne</p>
-                  </div>
-                  {!useAll && <span className="text-violet-400 text-xs">✓ Sélectionné</span>}
-                </button>
+                <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">Audience</label>
+                <ListPicker
+                  lists={lists}
+                  totalCount={totalCount}
+                  value={listIds}
+                  onChange={setListIds}
+                />
               </div>
 
-              {/* Summary */}
+              {/* Récapitulatif */}
               <div className="px-4 py-3 rounded-xl bg-[#0a0a18] border border-[#1e1e3f] space-y-1 text-sm">
                 <p className="text-[#475569] text-xs font-medium uppercase tracking-wider mb-2">Récapitulatif</p>
                 <div className="flex justify-between">
@@ -188,7 +174,7 @@ export default function NewCampaignWizard({ domains, contacts }: Props) {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#475569]">Contacts</span>
-                  <span className="text-white">{useAll ? `${contacts.length.toLocaleString()} contacts` : 'Aucun pour l\'instant'}</span>
+                  <span className="text-white">{selectedCount.toLocaleString()}</span>
                 </div>
               </div>
 
@@ -200,7 +186,7 @@ export default function NewCampaignWizard({ domains, contacts }: Props) {
                 </button>
                 <button
                   onClick={submit}
-                  disabled={isPending}
+                  disabled={isPending || selectedCount === 0}
                   className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white text-sm font-medium transition-all"
                 >
                   {isPending ? 'Création...' : 'Lancer la campagne →'}

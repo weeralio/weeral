@@ -2,6 +2,7 @@
 
 import { useActionState, useState, useRef, useEffect } from 'react'
 import { createCampaign } from '../actions'
+import ListPicker, { type ContactList } from '@/components/dashboard/list-picker'
 
 type Identity = { id: string; email: string; display_name: string | null; domains: { domain: string } | { domain: string }[] | null }
 
@@ -35,11 +36,10 @@ function IdentitySelect({ identities }: { identities: Identity[] }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-
       {open && (
         <div className="absolute z-10 mt-1 w-full bg-[#0d0d1c] border border-[#1e1e3f] rounded-xl shadow-xl overflow-hidden">
           {identities.map((i) => {
-            const label = i.display_name ? `${i.display_name} <${i.email}>` : i.email
+            const lbl = i.display_name ? `${i.display_name} <${i.email}>` : i.email
             return (
               <button
                 key={i.id}
@@ -47,7 +47,7 @@ function IdentitySelect({ identities }: { identities: Identity[] }) {
                 onClick={() => { setSelected(i); setOpen(false) }}
                 className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${selected?.id === i.id ? 'bg-[#8b5cf6]/15 text-violet-300' : 'text-[#94a3b8] hover:bg-[#111128] hover:text-white'}`}
               >
-                {label}
+                {lbl}
               </button>
             )
           })}
@@ -57,11 +57,25 @@ function IdentitySelect({ identities }: { identities: Identity[] }) {
   )
 }
 
-export default function NewCampaignForm({ identities, contactCount }: { identities: Identity[]; contactCount: number }) {
+interface Props {
+  identities: Identity[]
+  contactCount: number
+  lists: ContactList[]
+}
+
+export default function NewCampaignForm({ identities, contactCount, lists }: Props) {
   const [state, formAction, pending] = useActionState(createCampaign, null)
+  const [listIds, setListIds] = useState<string[]>([])
+
+  const selectedCount = listIds.length === 0
+    ? contactCount
+    : lists.filter(l => listIds.includes(l.id)).reduce((s, l) => s + l.count, 0)
 
   return (
     <form action={formAction} className="space-y-5">
+      {/* Hidden field for list selection */}
+      <input type="hidden" name="list_ids" value={JSON.stringify(listIds)} />
+
       <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-6 space-y-5">
 
         {/* Nom */}
@@ -105,12 +119,23 @@ export default function NewCampaignForm({ identities, contactCount }: { identiti
             className="w-full px-3 py-2.5 bg-[#07070f] border border-[#1e1e3f] rounded-xl text-sm text-white placeholder-[#3b3b6f] focus:outline-none focus:border-[#8b5cf6]/50 transition-colors resize-y"
           />
           <p className="mt-1.5 text-xs text-[#475569]">
-            Texte brut ou HTML. Variables : <code className="text-[#8b5cf6]">{'{{first_name}}'}</code>, <code className="text-[#8b5cf6]">{'{{last_name}}'}</code>, <code className="text-[#8b5cf6]">{'{{company}}'}</code>
+            Variables : <code className="text-[#8b5cf6]">{'{{first_name}}'}</code>, <code className="text-[#8b5cf6]">{'{{last_name}}'}</code>, <code className="text-[#8b5cf6]">{'{{company}}'}</code>
           </p>
+        </div>
+
+        {/* Audience */}
+        <div>
+          <label className="block text-sm font-medium text-[#94a3b8] mb-2">Audience</label>
+          <ListPicker
+            lists={lists}
+            totalCount={contactCount}
+            value={listIds}
+            onChange={setListIds}
+          />
         </div>
       </div>
 
-      {/* Info contacts */}
+      {/* Info résumé */}
       <div className="flex items-center gap-3 px-4 py-3 bg-violet-950/20 border border-violet-800/30 rounded-xl">
         <div className="w-7 h-7 rounded-lg bg-violet-900/40 flex items-center justify-center shrink-0">
           <svg className="w-3.5 h-3.5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -118,21 +143,19 @@ export default function NewCampaignForm({ identities, contactCount }: { identiti
           </svg>
         </div>
         <p className="text-sm text-violet-300">
-          Sera envoyée à <strong className="text-white">{contactCount.toLocaleString()} contacts actifs</strong>. L&apos;envoi sera progressif selon le warmup de ton domaine.
+          Sera envoyée à <strong className="text-white">{selectedCount.toLocaleString()} contacts</strong>. L&apos;envoi sera progressif selon le warmup du domaine.
         </p>
       </div>
 
-      {/* Erreur serveur */}
       {state && 'error' in state && (
         <p className="text-sm text-red-400 bg-red-950/20 border border-red-800/30 px-4 py-3 rounded-xl">
           {state.error}
         </p>
       )}
 
-      {/* Submit */}
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || selectedCount === 0}
         className="w-full py-3 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white text-sm font-semibold hover:from-[#6d28d9] hover:to-[#7c3aed] disabled:opacity-50 transition-all"
       >
         {pending ? 'Création…' : 'Créer la campagne →'}
