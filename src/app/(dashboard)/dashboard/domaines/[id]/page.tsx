@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import DomainActions from './domain-actions'
+import DomainManage from './domain-manage'
 import AddSenderIdentityForm from './add-sender-identity-form'
 import { getUserProvider } from '../actions'
 import WarmupChart from '@/components/charts/warmup-chart'
@@ -281,6 +282,21 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
         </CardHeader>
         <CardContent>
           <DomainActions domainId={id} domain={domain.domain} provider={provider} />
+        </CardContent>
+      </Card>
+
+      {/* ── Gérer le domaine ────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Gérer le domaine</CardTitle>
+          <CardDescription>Modifier les paramètres ou supprimer ce domaine.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DomainManage
+            domainId={id}
+            domain={domain.domain}
+            dailyLimit={domain.daily_limit ?? 50}
+          />
         </CardContent>
       </Card>
     </div>

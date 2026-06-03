@@ -50,10 +50,28 @@ export async function addDomain(prevState: State, formData: FormData): Promise<S
   return { success: `Domaine ${domain} ajouté.` }
 }
 
-export async function deleteDomain(id: string): Promise<void> {
+export async function deleteDomain(id: string): Promise<{ error?: string }> {
   const supabase = await createClient()
-  await supabase.from('domains').delete().eq('id', id)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+  await supabase.from('sender_identities').delete().eq('domain_id', id)
+  await supabase.from('domains').delete().eq('id', id).eq('user_id', user.id)
   revalidatePath('/dashboard/domaines')
+  return {}
+}
+
+export async function updateDomain(id: string, updates: { daily_limit?: number }): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+  const { error } = await supabase
+    .from('domains')
+    .update(updates)
+    .eq('id', id)
+    .eq('user_id', user.id)
+  if (error) return { error: error.message }
+  revalidatePath(`/dashboard/domaines/${id}`)
+  return {}
 }
 
 // ─── AWS SES: domain verification ────────────────────────────────────────────
