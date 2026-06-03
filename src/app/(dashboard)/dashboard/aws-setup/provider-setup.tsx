@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import AwsSetupGuide from './guide'
-import { saveProviderApiKey, type ProviderType } from './provider-actions'
+import { saveProviderApiKey, deleteProviderConfig, type ProviderType } from './provider-actions'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -122,20 +122,34 @@ function DifficultyDots({ score }: { score: number }) {
 // ─── Provider card ────────────────────────────────────────────────────────────
 
 function ProviderCard({
-  provider, volume, onSelect,
+  provider, volume, onSelect, isConfigured,
 }: {
   provider: Provider
   volume: number
   onSelect: () => void
+  isConfigured: boolean
 }) {
   const pricing = provider.pricing(volume)
   const isExpensive = provider.id === 'aws' && volume >= 50000
 
   return (
-    <div className={`relative flex flex-col bg-[#0d0d1c] border rounded-2xl p-5 transition-all hover:border-[#8b5cf6]/40 hover:shadow-[0_0_24px_rgba(139,92,246,0.08)] ${
-      provider.recommended ? 'border-[#8b5cf6]/40' : 'border-[#1e1e3f]'
+    <div className={`relative flex flex-col bg-[#0d0d1c] border rounded-2xl p-5 transition-all ${
+      isConfigured
+        ? 'border-emerald-700/40 hover:border-emerald-600/50 hover:shadow-[0_0_24px_rgba(52,211,153,0.08)]'
+        : provider.recommended
+          ? 'border-[#8b5cf6]/40 hover:border-[#8b5cf6]/60 hover:shadow-[0_0_24px_rgba(139,92,246,0.08)]'
+          : 'border-[#1e1e3f] hover:border-[#8b5cf6]/40 hover:shadow-[0_0_24px_rgba(139,92,246,0.08)]'
     }`}>
-      {provider.recommended && (
+      {/* Badges */}
+      {isConfigured && (
+        <span className="absolute -top-3 left-5 px-3 py-0.5 rounded-full text-[10px] font-bold bg-emerald-900 border border-emerald-700/50 text-emerald-300 tracking-wide flex items-center gap-1">
+          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          CONNECTÉ
+        </span>
+      )}
+      {!isConfigured && provider.recommended && (
         <span className="absolute -top-3 left-5 px-3 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white tracking-wide">
           RECOMMANDÉ
         </span>
@@ -193,29 +207,41 @@ function ProviderCard({
       <button
         onClick={onSelect}
         className={`mt-auto w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${
-          provider.recommended
-            ? 'bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white hover:from-[#6d28d9] hover:to-[#7c3aed] shadow-[0_0_16px_rgba(139,92,246,0.25)]'
-            : 'border border-[#1e1e3f] text-[#94a3b8] hover:border-[#8b5cf6]/40 hover:text-white'
+          isConfigured
+            ? 'border border-emerald-800/40 text-emerald-400 hover:bg-emerald-950/20'
+            : provider.recommended
+              ? 'bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white hover:from-[#6d28d9] hover:to-[#7c3aed] shadow-[0_0_16px_rgba(139,92,246,0.25)]'
+              : 'border border-[#1e1e3f] text-[#94a3b8] hover:border-[#8b5cf6]/40 hover:text-white'
         }`}
       >
-        Choisir {provider.name}
+        {isConfigured ? `Gérer ${provider.name}` : `Choisir ${provider.name}`}
       </button>
     </div>
   )
 }
 
-// ─── Simple API key form (Brevo / Mailgun / SendGrid) ─────────────────────────
+// ─── API key form with "already configured" state ─────────────────────────────
 
-function ApiKeyForm({ provider, onSaved }: { provider: ProviderType; onSaved: () => void }) {
-  const [key, setKey] = useState('')
-  const [status, setStatus] = useState<{ error?: string; success?: string } | null>(null)
-  const [pending, startTransition] = useTransition()
+function ApiKeyForm({
+  provider, isConfigured, onSaved,
+}: {
+  provider: ProviderType
+  isConfigured: boolean
+  onSaved: () => void
+}) {
+  const [editing, setEditing]         = useState(!isConfigured)
+  const [confirming, setConfirming]   = useState(false)
+  const [key, setKey]                 = useState('')
+  const [status, setStatus]           = useState<{ error?: string; success?: string } | null>(null)
+  const [pending, startTransition]    = useTransition()
 
   function handleSave() {
     startTransition(async () => {
       const result = await saveProviderApiKey(provider, key)
       if (result && 'success' in result) {
         setStatus({ success: result.success })
+        setEditing(false)
+        setKey('')
         onSaved()
       } else if (result && 'error' in result) {
         setStatus({ error: result.error })
@@ -223,30 +249,109 @@ function ApiKeyForm({ provider, onSaved }: { provider: ProviderType; onSaved: ()
     })
   }
 
+  function handleDelete() {
+    startTransition(async () => {
+      await deleteProviderConfig(provider)
+      setConfirming(false)
+      setEditing(true)
+      setStatus(null)
+      onSaved()
+    })
+  }
+
+  // Already configured — not in edit mode
+  if (!editing) {
+    return (
+      <div className="mt-6 space-y-3">
+        {/* Connected banner */}
+        <div className="flex items-center gap-3 bg-emerald-950/20 border border-emerald-800/30 rounded-xl px-4 py-3">
+          <div className="w-8 h-8 rounded-full bg-emerald-900/50 flex items-center justify-center shrink-0">
+            <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-emerald-400">Connexion active</p>
+            <p className="text-xs text-emerald-700">Clé API vérifiée et chiffrée</p>
+          </div>
+        </div>
+
+        {/* Options */}
+        {confirming ? (
+          <div className="bg-[#07070f] border border-red-800/30 rounded-xl p-4 space-y-3">
+            <p className="text-sm text-[#94a3b8]">Supprimer la connexion ? Les campagnes utilisant ce provider s&apos;arrêteront.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleDelete}
+                disabled={pending}
+                className="flex-1 py-2 rounded-xl bg-red-900/40 border border-red-800/40 text-red-400 text-sm hover:bg-red-900/60 disabled:opacity-50 transition-all"
+              >
+                {pending ? '…' : 'Confirmer la suppression'}
+              </button>
+              <button
+                onClick={() => setConfirming(false)}
+                className="flex-1 py-2 rounded-xl border border-[#1e1e3f] text-[#94a3b8] text-sm hover:text-white transition-all"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setEditing(true); setStatus(null) }}
+              className="flex-1 py-2.5 rounded-xl border border-[#1e1e3f] text-[#94a3b8] text-sm hover:border-[#8b5cf6]/40 hover:text-white transition-all"
+            >
+              Modifier la clé API
+            </button>
+            <button
+              onClick={() => setConfirming(true)}
+              className="flex-1 py-2.5 rounded-xl border border-red-800/30 text-red-400 text-sm hover:bg-red-950/20 transition-all"
+            >
+              Déconnecter
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Edit / first-time setup
   return (
     <div className="mt-6 bg-[#07070f] border border-[#1e1e3f] rounded-xl p-5 space-y-3">
-      <p className="text-sm font-semibold text-white">Entrer ta clé API</p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-white">
+          {isConfigured ? 'Remplacer la clé API' : 'Entrer ta clé API'}
+        </p>
+        {isConfigured && (
+          <button onClick={() => { setEditing(false); setStatus(null); setKey('') }} className="text-xs text-[#475569] hover:text-[#94a3b8] transition-colors">
+            Annuler
+          </button>
+        )}
+      </div>
       <input
         type="password"
         value={key}
         onChange={e => setKey(e.target.value)}
         placeholder="Colle ta clé API ici"
+        onKeyDown={e => e.key === 'Enter' && key.trim() && handleSave()}
+        autoFocus
         className="w-full bg-[#0d0d1c] border border-[#1e1e3f] text-white rounded-xl px-4 py-3 text-sm font-mono placeholder-[#334155] focus:outline-none focus:border-[#8b5cf6]/60 focus:ring-1 focus:ring-[#8b5cf6]/30 transition-all"
       />
-      {status?.error && <p className="text-xs text-red-400">{status.error}</p>}
+      {status?.error   && <p className="text-xs text-red-400">{status.error}</p>}
       {status?.success && <p className="text-xs text-emerald-400">{status.success}</p>}
       <button
         onClick={handleSave}
         disabled={pending || !key.trim()}
         className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
       >
-        {pending ? 'Sauvegarde...' : 'Sauvegarder la clé API'}
+        {pending ? 'Vérification...' : 'Vérifier & sauvegarder'}
       </button>
     </div>
   )
 }
 
-// ─── Guides ───────────────────────────────────────────────────────────────────
+// ─── Shared guide helpers ─────────────────────────────────────────────────────
 
 function ExternalLink({ href, children }: { children: string; href: string }) {
   return (
@@ -266,7 +371,7 @@ function Step({ num, title, children }: { num: number; title: string; children: 
       <div className="shrink-0 w-7 h-7 rounded-full bg-[#8b5cf6]/20 border border-[#8b5cf6]/30 flex items-center justify-center text-xs font-bold text-[#8b5cf6]">
         {num}
       </div>
-      <div className="flex-1 pb-6 border-l border-[#1e1e3f] pl-4 -ml-0 last:border-l-0">
+      <div className="flex-1 pb-6 border-l border-[#1e1e3f] pl-4 last:border-l-0">
         <p className="text-sm font-semibold text-white mb-2">{title}</p>
         <div className="text-sm text-[#94a3b8] space-y-2">{children}</div>
       </div>
@@ -274,104 +379,67 @@ function Step({ num, title, children }: { num: number; title: string; children: 
   )
 }
 
-function SqlMigration() {
-  const [copied, setCopied] = useState(false)
-  const sql = `CREATE TABLE IF NOT EXISTS provider_configs (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  provider text NOT NULL CHECK (provider IN ('brevo','mailgun','sendgrid')),
-  api_key_encrypted text NOT NULL,
-  created_at timestamptz DEFAULT now(),
-  UNIQUE(user_id, provider)
-);
-ALTER TABLE provider_configs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users manage own provider configs" ON provider_configs
-  FOR ALL USING (auth.uid() = user_id);`
+// ─── Provider guides ──────────────────────────────────────────────────────────
 
+function BrevoGuide({ isConfigured, onSaved }: { isConfigured: boolean; onSaved: () => void }) {
   return (
-    <div className="bg-amber-950/20 border border-amber-800/30 rounded-xl p-4 mb-6">
-      <p className="text-xs font-semibold text-amber-400 mb-2">⚠ Migration SQL requise (une seule fois)</p>
-      <p className="text-xs text-amber-300/70 mb-3">
-        Exécute ce SQL dans <ExternalLink href="https://supabase.com/dashboard/project/koaacxwnhfortkhrjhlo/sql/new">Supabase → SQL Editor</ExternalLink> avant de sauvegarder ta clé.
-      </p>
-      <div className="relative bg-[#07070f] rounded-lg p-3 font-mono text-xs text-[#a78bfa] whitespace-pre overflow-x-auto">
-        {sql}
-        <button
-          onClick={() => { navigator.clipboard.writeText(sql); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
-          className="absolute top-2 right-2 text-[#475569] hover:text-white text-xs transition-colors"
-        >
-          {copied ? '✓' : 'Copier'}
-        </button>
-      </div>
+    <div className="space-y-0">
+      <Step num={1} title="Créer un compte Brevo">
+        <p>Va sur <ExternalLink href="https://app.brevo.com/account/register">brevo.com</ExternalLink> et crée un compte gratuit (email + mot de passe, pas de carte requise).</p>
+      </Step>
+      <Step num={2} title="Vérifier tes domaines">
+        <p>Dans Brevo : <strong className="text-white">Paramètres → Expéditeurs & IP → Domaines → Ajouter un domaine</strong></p>
+        <p>Tu peux ajouter <strong className="text-white">autant de domaines que tu veux</strong> — la clé API couvre tous les domaines vérifiés. Ajoute les enregistrements DNS fournis (DKIM + DMARC) chez ton registrar.</p>
+      </Step>
+      <Step num={3} title="Obtenir ta clé API">
+        <p>Dans Brevo : <strong className="text-white">Paramètres → Clés API → Générer une nouvelle clé API</strong></p>
+        <p>Copie la clé — elle commence par <code className="bg-[#1e1e3f] text-[#a78bfa] px-1.5 py-0.5 rounded text-xs">xkeysib-</code></p>
+      </Step>
+      <Step num={4} title={isConfigured ? 'Connexion Brevo' : 'Coller ta clé ici'}>
+        <ApiKeyForm provider="brevo" isConfigured={isConfigured} onSaved={onSaved} />
+      </Step>
     </div>
   )
 }
 
-function BrevoGuide({ onSaved }: { onSaved: () => void }) {
+function MailgunGuide({ isConfigured, onSaved }: { isConfigured: boolean; onSaved: () => void }) {
   return (
-    <div>
-      <div className="space-y-0">
-        <Step num={1} title="Créer un compte Brevo">
-          <p>Va sur <ExternalLink href="https://app.brevo.com/account/register">brevo.com</ExternalLink> et crée un compte gratuit (email + mot de passe, pas de carte requise).</p>
-        </Step>
-        <Step num={2} title="Vérifier tes domaines">
-          <p>Dans Brevo : <strong className="text-white">Paramètres → Expéditeurs & IP → Domaines → Ajouter un domaine</strong></p>
-          <p>Tu peux ajouter <strong className="text-white">autant de domaines que tu veux</strong> — la clé API couvre tous les domaines vérifiés sur ton compte. Ajoute les enregistrements DNS fournis (DKIM + DMARC) chez ton registrar pour chacun.</p>
-        </Step>
-        <Step num={3} title="Obtenir ta clé API">
-          <p>Dans Brevo : <strong className="text-white">Paramètres → Clés API → Générer une nouvelle clé API</strong></p>
-          <p>Copie la clé — elle commence par <code className="bg-[#1e1e3f] text-[#a78bfa] px-1.5 py-0.5 rounded text-xs">xkeysib-</code></p>
-        </Step>
-        <Step num={4} title="Coller ta clé ici">
-          <ApiKeyForm provider="brevo" onSaved={onSaved} />
-        </Step>
-      </div>
+    <div className="space-y-0">
+      <Step num={1} title="Créer un compte Mailgun">
+        <p>Va sur <ExternalLink href="https://signup.mailgun.com/new/signup">mailgun.com</ExternalLink>. Une carte bancaire est requise pour la vérification.</p>
+      </Step>
+      <Step num={2} title="Ajouter et vérifier tes domaines">
+        <p>Dans Mailgun : <strong className="text-white">Sending → Domains → Add New Domain</strong></p>
+        <p>Ajoute les enregistrements DNS fournis (SPF, DKIM, CNAME), puis clique <strong className="text-white">Verify DNS Settings</strong>.</p>
+      </Step>
+      <Step num={3} title="Créer une clé API">
+        <p>Dans Mailgun : <strong className="text-white">Settings → API Keys → Create API Key</strong></p>
+        <p>Crée une clé <strong className="text-white">Private API Key</strong> — commence par <code className="bg-[#1e1e3f] text-[#a78bfa] px-1.5 py-0.5 rounded text-xs">key-</code></p>
+      </Step>
+      <Step num={4} title={isConfigured ? 'Connexion Mailgun' : 'Coller ta clé ici'}>
+        <ApiKeyForm provider="mailgun" isConfigured={isConfigured} onSaved={onSaved} />
+      </Step>
     </div>
   )
 }
 
-function MailgunGuide({ onSaved }: { onSaved: () => void }) {
+function SendgridGuide({ isConfigured, onSaved }: { isConfigured: boolean; onSaved: () => void }) {
   return (
-    <div>
-      <div className="space-y-0">
-        <Step num={1} title="Créer un compte Mailgun">
-          <p>Va sur <ExternalLink href="https://signup.mailgun.com/new/signup">mailgun.com</ExternalLink>. Une carte bancaire est requise pour la vérification (aucun débit si tu restes dans la limite gratuite).</p>
-        </Step>
-        <Step num={2} title="Ajouter et vérifier tes domaines">
-          <p>Dans Mailgun : <strong className="text-white">Sending → Domains → Add New Domain</strong></p>
-          <p>Tu peux ajouter <strong className="text-white">autant de domaines que tu veux</strong> — une seule clé API couvre tous. Ajoute les enregistrements DNS fournis (SPF, DKIM, CNAME) chez ton registrar pour chacun, puis clique <strong className="text-white">Verify DNS Settings</strong>.</p>
-        </Step>
-        <Step num={3} title="Créer une clé API">
-          <p>Dans Mailgun : <strong className="text-white">Settings → API Keys → Create API Key</strong></p>
-          <p>Crée une clé de type <strong className="text-white">Private API Key</strong>. Elle commence par <code className="bg-[#1e1e3f] text-[#a78bfa] px-1.5 py-0.5 rounded text-xs">key-</code></p>
-        </Step>
-        <Step num={4} title="Coller ta clé ici">
-          <ApiKeyForm provider="mailgun" onSaved={onSaved} />
-        </Step>
-      </div>
-    </div>
-  )
-}
-
-function SendgridGuide({ onSaved }: { onSaved: () => void }) {
-  return (
-    <div>
-      <div className="space-y-0">
-        <Step num={1} title="Créer un compte SendGrid">
-          <p>Va sur <ExternalLink href="https://signup.sendgrid.com/">sendgrid.com</ExternalLink>. Un numéro de téléphone est requis pour la vérification.</p>
-        </Step>
-        <Step num={2} title="Authentifier tes domaines">
-          <p>Dans SendGrid : <strong className="text-white">Settings → Sender Authentication → Authenticate a Domain</strong></p>
-          <p>Tu peux authentifier <strong className="text-white">autant de domaines que tu veux</strong> — une seule clé API couvre tous. Ajoute les enregistrements CNAME fournis chez ton registrar pour chacun.</p>
-        </Step>
-        <Step num={3} title="Créer une clé API">
-          <p>Dans SendGrid : <strong className="text-white">Settings → API Keys → Create API Key</strong></p>
-          <p>Choisis <strong className="text-white">Full Access</strong> ou au minimum <strong className="text-white">Mail Send</strong>. La clé commence par <code className="bg-[#1e1e3f] text-[#a78bfa] px-1.5 py-0.5 rounded text-xs">SG.</code></p>
-        </Step>
-        <Step num={4} title="Coller ta clé ici">
-          <ApiKeyForm provider="sendgrid" onSaved={onSaved} />
-        </Step>
-      </div>
+    <div className="space-y-0">
+      <Step num={1} title="Créer un compte SendGrid">
+        <p>Va sur <ExternalLink href="https://signup.sendgrid.com/">sendgrid.com</ExternalLink>. Un numéro de téléphone est requis.</p>
+      </Step>
+      <Step num={2} title="Authentifier tes domaines">
+        <p>Dans SendGrid : <strong className="text-white">Settings → Sender Authentication → Authenticate a Domain</strong></p>
+        <p>Ajoute les enregistrements CNAME fournis chez ton registrar.</p>
+      </Step>
+      <Step num={3} title="Créer une clé API">
+        <p>Dans SendGrid : <strong className="text-white">Settings → API Keys → Create API Key</strong></p>
+        <p>Choisis <strong className="text-white">Full Access</strong> ou <strong className="text-white">Mail Send</strong>. La clé commence par <code className="bg-[#1e1e3f] text-[#a78bfa] px-1.5 py-0.5 rounded text-xs">SG.</code></p>
+      </Step>
+      <Step num={4} title={isConfigured ? 'Connexion SendGrid' : 'Coller ta clé ici'}>
+        <ApiKeyForm provider="sendgrid" isConfigured={isConfigured} onSaved={onSaved} />
+      </Step>
     </div>
   )
 }
@@ -381,36 +449,41 @@ function SendgridGuide({ onSaved }: { onSaved: () => void }) {
 export default function ProviderSetup({
   hasAwsCredentials,
   existingRegion,
+  configuredProviders,
 }: {
   hasAwsCredentials: boolean
   existingRegion: string
+  configuredProviders: ProviderType[]
 }) {
-  const [selected, setSelected] = useState<Provider['id'] | null>(null)
-  const [volumeIdx, setVolumeIdx] = useState(2) // default 10k
-  const [configured, setConfigured] = useState(false)
+  const [selected, setSelected]   = useState<Provider['id'] | null>(null)
+  const [volumeIdx, setVolumeIdx] = useState(2)
+  const [localConfigured, setLocalConfigured] = useState<ProviderType[]>(configuredProviders)
 
   const volume = VOLUME_STEPS[volumeIdx]
   const selectedProvider = PROVIDERS.find(p => p.id === selected)
 
+  const isProviderConfigured = (id: Provider['id']) =>
+    id === 'aws' ? hasAwsCredentials : localConfigured.includes(id as ProviderType)
+
   if (selected && selectedProvider) {
+    const isConfigured = isProviderConfigured(selected)
+
     return (
       <div className="space-y-6">
-        {/* Back + title */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => { setSelected(null); setConfigured(false) }}
-            className="flex items-center gap-1.5 text-xs text-[#475569] hover:text-[#94a3b8] transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11 17l-5-5m0 0l5-5m-5 5h12" />
-            </svg>
-            Changer de fournisseur
-          </button>
-        </div>
+        {/* Back */}
+        <button
+          onClick={() => setSelected(null)}
+          className="flex items-center gap-1.5 text-xs text-[#475569] hover:text-[#94a3b8] transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11 17l-5-5m0 0l5-5m-5 5h12" />
+          </svg>
+          Changer de fournisseur
+        </button>
 
         <div className="flex items-center gap-3">
           <div>
-            <h2 className="text-xl font-bold text-white">Configurer {selectedProvider.name}</h2>
+            <h2 className="text-xl font-bold text-white">{selectedProvider.name}</h2>
             <div className="flex items-center gap-2 mt-1">
               <span className={`text-xs px-2 py-0.5 rounded-lg border font-semibold ${DIFFICULTY_COLORS[selectedProvider.difficulty]}`}>
                 {selectedProvider.difficultyLabel}
@@ -418,12 +491,12 @@ export default function ProviderSetup({
               <span className="text-xs text-[#475569]">~{selectedProvider.setupTime}</span>
             </div>
           </div>
-          {configured && (
+          {isConfigured && (
             <span className="ml-auto flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-950/30 border border-emerald-800/30 px-3 py-1.5 rounded-xl">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
-              Configuré
+              Connecté
             </span>
           )}
         </div>
@@ -431,9 +504,24 @@ export default function ProviderSetup({
         {selected === 'aws' && (
           <AwsSetupGuide hasCredentials={hasAwsCredentials} existingRegion={existingRegion} />
         )}
-        {selected === 'brevo'    && <BrevoGuide    onSaved={() => setConfigured(true)} />}
-        {selected === 'mailgun'  && <MailgunGuide  onSaved={() => setConfigured(true)} />}
-        {selected === 'sendgrid' && <SendgridGuide onSaved={() => setConfigured(true)} />}
+        {selected === 'brevo' && (
+          <BrevoGuide
+            isConfigured={localConfigured.includes('brevo')}
+            onSaved={() => setLocalConfigured(prev => prev.includes('brevo') ? prev : [...prev, 'brevo'])}
+          />
+        )}
+        {selected === 'mailgun' && (
+          <MailgunGuide
+            isConfigured={localConfigured.includes('mailgun')}
+            onSaved={() => setLocalConfigured(prev => prev.includes('mailgun') ? prev : [...prev, 'mailgun'])}
+          />
+        )}
+        {selected === 'sendgrid' && (
+          <SendgridGuide
+            isConfigured={localConfigured.includes('sendgrid')}
+            onSaved={() => setLocalConfigured(prev => prev.includes('sendgrid') ? prev : [...prev, 'sendgrid'])}
+          />
+        )}
       </div>
     )
   }
@@ -471,6 +559,7 @@ export default function ProviderSetup({
             provider={p}
             volume={volume}
             onSelect={() => setSelected(p.id)}
+            isConfigured={isProviderConfigured(p.id)}
           />
         ))}
       </div>
