@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       payment_settings: {
         save_default_payment_method: 'on_subscription',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        payment_method_types: ['card', 'link'] as any, // excludes amazon_pay
+        payment_method_types: ['card'] as any,
       },
       metadata: { user_id: user?.id ?? '', plan, billing },
       ...(promotionCodeId ? { discounts: [{ promotion_code: promotionCodeId }] } : {}),

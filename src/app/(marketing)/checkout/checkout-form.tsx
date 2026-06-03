@@ -29,22 +29,28 @@ function PaymentForm({
   const elements = useElements()
   const [error,   setError]   = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [cgv,     setCgv]     = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!stripe || !elements) return
+    if (!stripe || !elements || !cgv) return
     setLoading(true)
     setError(null)
 
-    const { error: stripeError } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/checkout/success?plan=${plan}&billing=${billing}`,
-      },
-    })
-
-    if (stripeError) {
-      setError(stripeError.message ?? 'Erreur de paiement.')
+    try {
+      const { error: stripeError } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/checkout/success?plan=${plan}&billing=${billing}`,
+        },
+      })
+      // If no stripeError, Stripe is redirecting — nothing to do here
+      if (stripeError) {
+        setError(stripeError.message ?? 'Erreur de paiement.')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur de paiement.')
+    } finally {
       setLoading(false)
     }
   }
@@ -63,6 +69,35 @@ function PaymentForm({
         />
       </div>
 
+      {/* CGV checkbox */}
+      <label className="flex items-start gap-3 cursor-pointer group">
+        <div className="relative mt-0.5 shrink-0">
+          <input
+            type="checkbox"
+            checked={cgv}
+            onChange={e => setCgv(e.target.checked)}
+            className="sr-only"
+          />
+          <div className={`w-4 h-4 rounded border transition-all ${cgv ? 'bg-[#8b5cf6] border-[#8b5cf6]' : 'bg-[#07070f] border-[#3b3b6f] group-hover:border-[#8b5cf6]/50'}`}>
+            {cgv && (
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </div>
+        </div>
+        <span className="text-xs text-[#475569] leading-relaxed">
+          J&apos;accepte les{' '}
+          <Link href="/cgv" target="_blank" className="text-[#8b5cf6] hover:underline">
+            conditions générales de vente
+          </Link>{' '}
+          et la{' '}
+          <Link href="/privacy" target="_blank" className="text-[#8b5cf6] hover:underline">
+            politique de confidentialité
+          </Link>
+        </span>
+      </label>
+
       {error && (
         <div className="flex items-start gap-3 bg-red-950/30 border border-red-800/40 rounded-xl px-4 py-3">
           <svg className="w-4 h-4 text-red-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -74,7 +109,7 @@ function PaymentForm({
 
       <button
         type="submit"
-        disabled={loading || !stripe}
+        disabled={loading || !stripe || !cgv}
         className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white font-semibold text-sm hover:from-[#6d28d9] hover:to-[#7c3aed] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_20px_rgba(139,92,246,0.3)] flex items-center justify-center gap-2"
       >
         {loading ? (
