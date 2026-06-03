@@ -212,7 +212,7 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error ?? 'Erreur serveur')
       if (data.free) {
-        router.push(`/checkout/success?plan=${plan}&billing=${billing}`)
+        router.push(`/checkout/success?plan=${plan}&billing=${billing}&sub=${data.subscriptionId}`)
         return
       }
       setSubscriptionId(data.subscriptionId)

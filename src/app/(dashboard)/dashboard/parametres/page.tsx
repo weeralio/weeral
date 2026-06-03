@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdmin } from '@supabase/supabase-js'
 import { getSESClient, getSendQuota } from '@/lib/ses'
 import { PLAN_META } from '@/lib/stripe'
 import Link from 'next/link'
@@ -10,8 +11,12 @@ export default async function ParametresPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  // Subscription
-  const { data: subscription } = await supabase
+  // Subscription — admin client bypasses RLS
+  const admin = createAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+  const { data: subscription } = await admin
     .from('subscriptions')
     .select('plan, billing, status, current_period_end')
     .eq('user_id', user.id)

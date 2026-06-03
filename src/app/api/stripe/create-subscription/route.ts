@@ -18,11 +18,21 @@ async function upsertSubscriptionNow(
   plan: string,
   billing: string,
 ) {
+  const admin = getAdminSupabase()
+
+  // Resolve user_id from email if not available (e.g. checkout while logged out)
+  let resolvedUserId = userId
+  if (!resolvedUserId && email) {
+    const { data: users } = await admin.auth.admin.listUsers()
+    const match = users?.users?.find(u => u.email === email)
+    if (match) resolvedUserId = match.id
+  }
+
   const periodEnd = (sub as unknown as { current_period_end: number }).current_period_end
-  await getAdminSupabase().from('subscriptions').upsert({
+  await admin.from('subscriptions').upsert({
     stripe_customer_id:     sub.customer as string,
     stripe_subscription_id: sub.id,
-    user_id:                userId,
+    user_id:                resolvedUserId,
     email,
     plan,
     billing,

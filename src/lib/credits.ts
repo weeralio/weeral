@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdmin } from '@supabase/supabase-js'
 import { FREE_CONTACTS_LIMIT, FREE_EMAILS_LIMIT } from '@/lib/stripe'
 
 export interface UserLimits {
@@ -13,16 +14,22 @@ export interface UserLimits {
 export async function getUserLimits(userId: string): Promise<UserLimits> {
   const supabase = await createClient()
 
+  // Use admin client for subscriptions to bypass RLS and match by user_id reliably
+  const admin = createAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+
   const [
     { data: sub },
     { count: contactsUsed },
     { data: logs },
   ] = await Promise.all([
-    supabase
+    admin
       .from('subscriptions')
       .select('status')
       .eq('user_id', userId)
-      .in('status', ['active', 'trialing'])
+      .in('status', ['active', 'trialing', 'cancel_at_period_end'])
       .maybeSingle(),
     supabase
       .from('contacts')
