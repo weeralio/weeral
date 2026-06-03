@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { addSenderIdentitiesBulk } from '../actions'
 import type { EmailProvider } from '../actions'
 
@@ -51,6 +52,7 @@ interface Props {
 }
 
 export default function BulkCreateForm({ domainId, domain, provider: _provider }: Props) {
+  const router = useRouter()
   const [open, setOpen]             = useState(false)
   const [firstName, setFirstName]   = useState('')
   const [lastName, setLastName]     = useState('')
@@ -88,6 +90,7 @@ export default function BulkCreateForm({ domainId, domain, provider: _provider }
             { prefix: '', displayName: '' },
           ])
           setResult(null)
+          router.refresh()
         }, 1500)
       }
     })
