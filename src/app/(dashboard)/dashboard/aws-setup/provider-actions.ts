@@ -81,6 +81,12 @@ export async function saveProviderApiKey(
   }
 
   revalidatePath('/dashboard/aws-setup')
+
+  // Auto-configure webhooks right after saving Mailgun key
+  if (provider === 'mailgun') {
+    await setupMailgunWebhooks()
+  }
+
   return { success: `Connexion ${provider} vérifiée et sauvegardée.` }
 }
 
