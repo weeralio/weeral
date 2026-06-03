@@ -22,11 +22,16 @@ async function verifyApiKey(provider: ProviderType, apiKey: string): Promise<str
     }
 
     else if (provider === 'mailgun') {
-      // Mailgun uses Basic auth: username=api, password=key
       const encoded = Buffer.from(`api:${apiKey}`).toString('base64')
+      // Try US then EU region
       res = await fetch('https://api.mailgun.net/v3/domains?limit=1', {
         headers: { Authorization: `Basic ${encoded}` },
       })
+      if (res.status === 401 || res.status === 403) {
+        res = await fetch('https://api.eu.mailgun.net/v3/domains?limit=1', {
+          headers: { Authorization: `Basic ${encoded}` },
+        })
+      }
       if (res.status === 401 || res.status === 403) return 'Clé Mailgun invalide ou sans permissions.'
       if (!res.ok) return `Mailgun a répondu avec une erreur (${res.status}).`
     }

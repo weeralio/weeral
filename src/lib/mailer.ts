@@ -136,27 +136,28 @@ async function sendViaMailgun(apiKey: string, params: MailParams): Promise<strin
   form.append('html', params.htmlBody)
   if (text) form.append('text', text)
   if (params.replyTo) form.append('h:Reply-To', params.replyTo)
-  // Disable Mailgun's own tracking — we handle it ourselves
   form.append('o:tracking', 'no')
 
-  const credentials = btoa(`api:${apiKey}`)
-  const res = await fetch(`https://api.mailgun.net/v3/${domain}/messages`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${credentials}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: form.toString(),
-  })
+  const credentials = Buffer.from(`api:${apiKey}`).toString('base64')
+  const headers = {
+    'Authorization': `Basic ${credentials}`,
+    'Content-Type': 'application/x-www-form-urlencoded',
+  }
+  const body = form.toString()
 
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Mailgun error ${res.status}: ${err}`)
+  // Try US region first, fall back to EU
+  for (const base of ['https://api.mailgun.net', 'https://api.eu.mailgun.net']) {
+    const res = await fetch(`${base}/v3/${domain}/messages`, { method: 'POST', headers, body })
+    if (res.status === 401 && base === 'https://api.mailgun.net') continue // try EU
+    if (!res.ok) {
+      const err = await res.text()
+      throw new Error(`Mailgun error ${res.status}: ${err} (domain: ${domain}, region: ${base.includes('.eu.') ? 'EU' : 'US'})`)
+    }
+    const json = await res.json() as { id?: string }
+    return (json.id ?? '').replace(/^<|>$/g, '')
   }
 
-  const json = await res.json() as { id?: string }
-  // Strip angle brackets Mailgun adds: "<abc123>"
-  return (json.id ?? '').replace(/^<|>$/g, '')
+  throw new Error('Mailgun: authentification refusée sur US et EU — vérifie ta clé API et le domaine')
 }
 
 // ─── SendGrid ─────────────────────────────────────────────────────────────────
