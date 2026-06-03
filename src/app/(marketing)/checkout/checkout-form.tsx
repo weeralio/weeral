@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { loadStripe } from '@stripe/stripe-js'
 import {
   Elements,
@@ -112,6 +113,7 @@ interface PromoInfo {
 }
 
 export default function CheckoutForm({ plan, billing, userEmail }: Props) {
+  const router = useRouter()
   const meta  = PLAN_META[plan]
   const price = billing === 'annual' ? meta.annualPrice : meta.monthlyPrice
 
@@ -174,7 +176,7 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error ?? 'Erreur serveur')
       if (data.free) {
-        window.location.href = `/checkout/success?plan=${plan}&billing=${billing}`
+        router.push(`/checkout/success?plan=${plan}&billing=${billing}`)
         return
       }
       setClientSecret(data.clientSecret)

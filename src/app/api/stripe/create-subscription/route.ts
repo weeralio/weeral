@@ -63,6 +63,11 @@ export async function POST(req: NextRequest) {
     const sub = subscription as any
     let clientSecret: string | null = null
 
+    // If subscription is already active (e.g. 100% promo = 0€ invoice), no payment needed
+    if (subscription.status === 'active' || subscription.status === 'trialing') {
+      return NextResponse.json({ subscriptionId: subscription.id, free: true })
+    }
+
     // Stripe 2025-01-27.acacia: invoice.payment_intent moved to InvoicePayment objects
     const invoiceId = typeof sub.latest_invoice === 'string'
       ? sub.latest_invoice
