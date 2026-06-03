@@ -39,8 +39,7 @@ export async function GET(request: Request) {
         .update({ status: 'opened', opened_at: new Date().toISOString() })
         .eq('id', email.id)
 
-      // Update sender_identity open_rate (best-effort)
-      await supabase.rpc('recalc_open_rate', { p_campaign_id: cmpid }).maybeSingle()
+      // open_rate is computed on-the-fly in analytics queries — no RPC needed here
     }
   } catch {
     // Never block pixel delivery on DB errors
