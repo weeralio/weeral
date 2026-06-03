@@ -47,7 +47,7 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
 
   const [
     { data: domain },
-    { data: rawIdentities },
+    { data: rawIdentities, error: identitiesError },
     { data: warmupLogs },
     { data: replyBoxes },
     { data: recentAlerts },
@@ -57,6 +57,7 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
     supabase.from('sender_identities')
       .select('id, email, display_name, warmup_day, warmup_status, daily_volume, sent_today, hard_bounce_rate, complaint_rate, suspension_step, suspended_until, suspension_reason, ses_verified')
       .eq('domain_id', id)
+      .eq('user_id', user!.id)
       .order('created_at', { ascending: false }),
     supabase.from('warmup_logs').select('date, emails_sent, bounces, complaints').eq('domain_id', id).order('date', { ascending: false }).limit(30),
     supabase.from('warmup_reply_boxes').select('id').eq('user_id', user!.id).eq('is_active', true),
@@ -70,6 +71,7 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
   ])
 
   if (!domain) notFound()
+  if (identitiesError) console.error('[DomainDetailPage] identities query error:', identitiesError)
 
   const identities = rawIdentities ?? []
   const replyBoxCount = replyBoxes?.length ?? 0
@@ -152,7 +154,9 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {identities.length === 0 ? (
+          {identitiesError ? (
+            <p className="px-6 py-4 text-xs text-red-400">Erreur DB : {identitiesError.message}</p>
+          ) : identities.length === 0 ? (
             <p className="px-6 py-8 text-center text-sm text-[#475569]">Aucune adresse configurée.</p>
           ) : (
             <div className="divide-y divide-[#1e1e3f]">
