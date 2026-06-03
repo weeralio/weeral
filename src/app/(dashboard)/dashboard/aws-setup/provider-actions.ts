@@ -7,6 +7,46 @@ import { revalidatePath } from 'next/cache'
 export type ProviderType = 'brevo' | 'mailgun' | 'sendgrid'
 type State = { error: string } | { success: string } | null
 
+// ─── API key verification ─────────────────────────────────────────────────────
+
+async function verifyApiKey(provider: ProviderType, apiKey: string): Promise<string | null> {
+  try {
+    let res: Response
+
+    if (provider === 'brevo') {
+      res = await fetch('https://api.brevo.com/v3/account', {
+        headers: { 'api-key': apiKey },
+      })
+      if (res.status === 401 || res.status === 403) return 'Clé Brevo invalide ou sans permissions.'
+      if (!res.ok) return `Brevo a répondu avec une erreur (${res.status}).`
+    }
+
+    else if (provider === 'mailgun') {
+      // Mailgun uses Basic auth: username=api, password=key
+      const encoded = Buffer.from(`api:${apiKey}`).toString('base64')
+      res = await fetch('https://api.mailgun.net/v3/domains?limit=1', {
+        headers: { Authorization: `Basic ${encoded}` },
+      })
+      if (res.status === 401 || res.status === 403) return 'Clé Mailgun invalide ou sans permissions.'
+      if (!res.ok) return `Mailgun a répondu avec une erreur (${res.status}).`
+    }
+
+    else if (provider === 'sendgrid') {
+      res = await fetch('https://api.sendgrid.com/v3/user/account', {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      })
+      if (res.status === 401 || res.status === 403) return 'Clé SendGrid invalide ou sans permissions.'
+      if (!res.ok) return `SendGrid a répondu avec une erreur (${res.status}).`
+    }
+
+    return null // valid
+  } catch {
+    return 'Impossible de contacter le provider — vérifie ta connexion.'
+  }
+}
+
+// ─── Save action ──────────────────────────────────────────────────────────────
+
 export async function saveProviderApiKey(
   provider: ProviderType,
   apiKey: string,
@@ -15,6 +55,10 @@ export async function saveProviderApiKey(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
   if (!apiKey.trim()) return { error: 'Clé API requise' }
+
+  // Verify the key actually works before saving
+  const verifyError = await verifyApiKey(provider, apiKey.trim())
+  if (verifyError) return { error: verifyError }
 
   const { error } = await supabase
     .from('provider_configs')
@@ -32,7 +76,7 @@ export async function saveProviderApiKey(
   }
 
   revalidatePath('/dashboard/aws-setup')
-  return { success: `Clé ${provider} sauvegardée.` }
+  return { success: `Connexion ${provider} vérifiée et sauvegardée.` }
 }
 
 export async function getProviderConfig(provider: ProviderType): Promise<{ configured: boolean }> {
