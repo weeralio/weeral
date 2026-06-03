@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { BOUNCE_RATE_THRESHOLD, COMPLAINT_RATE_THRESHOLD } from '@/lib/warmup'
 
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid notification' }, { status: 400 })
   }
 
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const notifType = notification.notificationType as string
   const mail = notification.mail as Record<string, unknown>
   const sesMessageId = mail?.messageId as string
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true })
 }
 
-async function updateDomainRates(supabase: Awaited<ReturnType<typeof createClient>>, domainId: string, today: string) {
+async function updateDomainRates(supabase: ReturnType<typeof createServiceClient>, domainId: string, today: string) {
   const { data: logs } = await supabase
     .from('warmup_logs')
     .select('emails_sent, bounces, complaints')

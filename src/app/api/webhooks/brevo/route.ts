@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { BOUNCE_RATE_THRESHOLD, COMPLAINT_RATE_THRESHOLD } from '@/lib/warmup'
 
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
 
   if (!messageId && !email) return NextResponse.json({ ok: true })
 
-  const supabase = await createClient()
+  const supabase = createServiceClient()
 
   // Find email record
   const { data: emailRecord } = await supabase
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true })
 }
 
-async function updateDomainRates(supabase: Awaited<ReturnType<typeof createClient>>, domainId: string, today: string) {
+async function updateDomainRates(supabase: ReturnType<typeof createServiceClient>, domainId: string, today: string) {
   const { data: logs } = await supabase
     .from('warmup_logs')
     .select('emails_sent, bounces, complaints')

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { verifyTrackingToken } from '@/lib/tokens'
 import { NextResponse } from 'next/server'
 
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = await createClient()
+    const supabase = createServiceClient()
 
     const { data: email } = await supabase
       .from('emails')
