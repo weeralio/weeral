@@ -20,7 +20,6 @@ export default async function ParametresPage() {
     .from('subscriptions')
     .select('plan, billing, status, current_period_end')
     .eq('user_id', user.id)
-    .in('status', ['active', 'trialing', 'cancel_at_period_end'])
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -68,16 +67,31 @@ export default async function ParametresPage() {
       </div>
 
       {/* Abonnement */}
-      {subscription && (() => {
-        const planId = subscription.plan as keyof typeof PLAN_META
+      {(() => {
+        const isActive = subscription && ['active', 'trialing', 'cancel_at_period_end'].includes(subscription.status)
+        if (!isActive) {
+          return (
+            <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-6">
+              <h2 className="text-base font-semibold text-white mb-1">Abonnement</h2>
+              <p className="text-sm text-[#475569] mb-4">Aucun abonnement actif.</p>
+              <Link
+                href="/pricing"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white text-sm font-semibold hover:from-[#6d28d9] hover:to-[#7c3aed] transition-all"
+              >
+                Voir les offres →
+              </Link>
+            </div>
+          )
+        }
+        const planId = subscription!.plan as keyof typeof PLAN_META
         const meta   = PLAN_META[planId] ?? PLAN_META.starter
-        const price  = subscription.billing === 'annual' ? meta.annualPrice : meta.monthlyPrice
+        const price  = subscription!.billing === 'annual' ? meta.annualPrice : meta.monthlyPrice
         return (
           <SubscriptionSection
-            plan={subscription.plan}
-            billing={subscription.billing}
-            status={subscription.status}
-            periodEnd={subscription.current_period_end}
+            plan={subscription!.plan}
+            billing={subscription!.billing}
+            status={subscription!.status}
+            periodEnd={subscription!.current_period_end}
             planName={meta.name}
             price={price}
           />
