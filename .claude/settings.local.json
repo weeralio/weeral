@@ -8,7 +8,9 @@
       "Bash(command -v nvm)",
       "Read(//Users/anthonyprudent/**)",
       "Bash(node -e \"const t = require\\('@trigger.dev/sdk/v3'\\); console.log\\(Object.keys\\(t\\).slice\\(0,20\\)\\)\")",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://weeral.io)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://weeral.io/dashboard)"
     ]
   }
 }
