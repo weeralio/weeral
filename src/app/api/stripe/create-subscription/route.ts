@@ -1,6 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getStripe, getPriceId, PLAN_META, type PlanId, type Billing } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdmin } from '@supabase/supabase-js'
+import type Stripe from 'stripe'
+
+function getAdminSupabase() {
+  return createAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
+
+async function upsertSubscriptionNow(
+  sub: Stripe.Subscription,
+  userId: string | null,
+  email: string,
+  plan: string,
+  billing: string,
+) {
+  const periodEnd = (sub as unknown as { current_period_end: number }).current_period_end
+  await getAdminSupabase().from('subscriptions').upsert({
+    stripe_customer_id:     sub.customer as string,
+    stripe_subscription_id: sub.id,
+    user_id:                userId,
+    email,
+    plan,
+    billing,
+    status:                 sub.status,
+    current_period_end:     periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+    updated_at:             new Date().toISOString(),
+  }, { onConflict: 'stripe_subscription_id' })
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,6 +57,7 @@ export async function POST(req: NextRequest) {
     // Get logged-in user if any
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
+    const userId = user?.id ?? null
 
     // Find or create Stripe customer
     const stripe = getStripe()
@@ -36,12 +67,11 @@ export async function POST(req: NextRequest) {
     if (!customer) {
       customer = await stripe.customers.create({
         email,
-        metadata: { user_id: user?.id ?? '', plan, billing },
+        metadata: { user_id: userId ?? '', plan, billing },
       })
     } else {
-      // Update metadata in case plan changed
       await stripe.customers.update(customer.id, {
-        metadata: { user_id: user?.id ?? '', plan, billing },
+        metadata: { user_id: userId ?? '', plan, billing },
       })
     }
 
@@ -55,28 +85,28 @@ export async function POST(req: NextRequest) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         payment_method_types: ['card'] as any,
       },
-      metadata: { user_id: user?.id ?? '', plan, billing },
+      metadata: { user_id: userId ?? '', plan, billing },
       ...(promotionCodeId ? { discounts: [{ promotion_code: promotionCodeId }] } : {}),
     })
+
+    // If already active (0€ promo), write to DB immediately and return
+    if (subscription.status === 'active' || subscription.status === 'trialing') {
+      await upsertSubscriptionNow(subscription, userId, email, plan, billing)
+      return NextResponse.json({ subscriptionId: subscription.id, free: true })
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sub = subscription as any
     let clientSecret: string | null = null
 
-    // If subscription is already active (e.g. 100% promo = 0€ invoice), no payment needed
-    if (subscription.status === 'active' || subscription.status === 'trialing') {
-      return NextResponse.json({ subscriptionId: subscription.id, free: true })
-    }
-
-    // Stripe 2025-01-27.acacia: invoice.payment_intent moved to InvoicePayment objects
     const invoiceId = typeof sub.latest_invoice === 'string'
       ? sub.latest_invoice
       : sub.latest_invoice?.id
 
     if (invoiceId) {
-      // Check for 0€ invoice (100% promo applied) — no payment intent is generated
       const invoice = await stripe.invoices.retrieve(invoiceId)
       if ((invoice.amount_due ?? 0) === 0) {
+        await upsertSubscriptionNow(subscription, userId, email, plan, billing)
         return NextResponse.json({ subscriptionId: subscription.id, free: true })
       }
 
@@ -102,10 +132,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    return NextResponse.json({
-      subscriptionId: subscription.id,
-      clientSecret,
-    })
+    return NextResponse.json({ subscriptionId: subscription.id, clientSecret })
   } catch (err: unknown) {
     console.error('[stripe/create-subscription]', err)
     const msg = err instanceof Error ? err.message : 'Erreur serveur'

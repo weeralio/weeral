@@ -1,12 +1,24 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSESClient, getSendQuota } from '@/lib/ses'
+import { PLAN_META } from '@/lib/stripe'
 import Link from 'next/link'
 import AwsCredentialsForm from './aws-credentials-form'
+import SubscriptionSection from './subscription-section'
 
 export default async function ParametresPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
+
+  // Subscription
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('plan, billing, status, current_period_end')
+    .eq('user_id', user.id)
+    .in('status', ['active', 'trialing', 'cancel_at_period_end'])
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
   // AWS credentials
   const { data: awsCreds } = await supabase
@@ -49,6 +61,23 @@ export default async function ParametresPage() {
         <h1 className="text-2xl font-bold text-white">Paramètres</h1>
         <p className="text-sm text-[#475569] mt-1">Gère ton compte et tes expéditeurs email.</p>
       </div>
+
+      {/* Abonnement */}
+      {subscription && (() => {
+        const planId = subscription.plan as keyof typeof PLAN_META
+        const meta   = PLAN_META[planId] ?? PLAN_META.starter
+        const price  = subscription.billing === 'annual' ? meta.annualPrice : meta.monthlyPrice
+        return (
+          <SubscriptionSection
+            plan={subscription.plan}
+            billing={subscription.billing}
+            status={subscription.status}
+            periodEnd={subscription.current_period_end}
+            planName={meta.name}
+            price={price}
+          />
+        )
+      })()}
 
       {/* Expéditeurs actifs */}
       <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-6">

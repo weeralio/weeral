@@ -31,6 +31,17 @@ export async function POST(req: NextRequest) {
         await upsertSubscription(sub)
         break
       }
+      case 'invoice.payment_succeeded': {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const invoice = event.data.object as any
+        const subId = invoice.subscription ?? invoice.parent?.subscription_details?.subscription
+        if (subId) {
+          const stripe = getStripe()
+          const sub = await stripe.subscriptions.retrieve(subId as string)
+          await upsertSubscription(sub)
+        }
+        break
+      }
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription
         await getAdminSupabase()
