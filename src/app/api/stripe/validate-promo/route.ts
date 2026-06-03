@@ -19,8 +19,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Code invalide ou expiré' }, { status: 404 })
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const coupon = promoCode.coupon as any
+    // coupon may come back as a string ID even with expand if the SDK version
+    // doesn't honour it — retrieve it explicitly in that case
+    const couponOrId = promoCode.coupon
+    const coupon = !couponOrId
+      ? null
+      : typeof couponOrId === 'string'
+        ? await stripe.coupons.retrieve(couponOrId)
+        : couponOrId
+
+    if (!coupon) {
+      return NextResponse.json({ error: 'Coupon introuvable' }, { status: 404 })
+    }
+
     return NextResponse.json({
       id: promoCode.id,
       name: coupon.name ?? code,
