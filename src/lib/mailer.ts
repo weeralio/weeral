@@ -64,9 +64,9 @@ function prepareHtml(params: MailParams): string {
   // Rewrite external links for click tracking (skip unsubscribe links)
   if (params.tracking) {
     const { contactId, campaignId } = params.tracking
-    html = html.replace(/href="(https?:\/\/[^"]+)"/gi, (match, url: string) => {
+    html = html.replace(/href=(["'])(https?:\/\/[^"'>\s]+)\1/gi, (match, quote, url: string) => {
       if (url.includes('/unsubscribe')) return match
-      return `href="${clickTrackUrl(url, contactId, campaignId)}"`
+      return `href=${quote}${clickTrackUrl(url, contactId, campaignId)}${quote}`
     })
   }
 

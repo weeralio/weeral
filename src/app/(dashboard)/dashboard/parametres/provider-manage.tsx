@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { saveProviderApiKey, deleteProviderConfig, type ProviderType } from '../aws-setup/provider-actions'
+import { saveProviderApiKey, deleteProviderConfig, setupMailgunWebhooks, type ProviderType } from '../aws-setup/provider-actions'
 
 const PROVIDER_LABELS: Record<ProviderType, string> = {
   brevo:    'Brevo',
@@ -53,10 +53,29 @@ function ProviderRow({ provider }: ProviderRowProps) {
         </div>
 
         {mode === 'idle' && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-950/50 text-emerald-400 border border-emerald-800/30">
               Configuré
             </span>
+            {provider === 'mailgun' && (
+              <button
+                onClick={() => {
+                  setMsg(null)
+                  startTransition(async () => {
+                    const res = await setupMailgunWebhooks()
+                    if (res.error) {
+                      setMsg({ type: 'err', text: res.error })
+                    } else {
+                      setMsg({ type: 'ok', text: res.success ?? 'Webhooks configurés ✓' })
+                    }
+                  })
+                }}
+                disabled={isPending}
+                className="text-xs px-2.5 py-1 rounded-lg border border-violet-800/40 text-violet-400 hover:bg-violet-950/30 disabled:opacity-50 transition-all"
+              >
+                {isPending ? '...' : 'Config. webhooks'}
+              </button>
+            )}
             <button
               onClick={() => { setMode('edit'); setMsg(null) }}
               className="text-xs px-2.5 py-1 rounded-lg border border-[#1e1e3f] text-[#94a3b8] hover:border-[#8b5cf6]/40 hover:text-white transition-all"
