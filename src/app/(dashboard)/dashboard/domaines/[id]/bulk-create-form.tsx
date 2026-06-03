@@ -77,7 +77,7 @@ export default function BulkCreateForm({ domainId, domain, provider: _provider }
     startTransition(async () => {
       const res = await addSenderIdentitiesBulk(domainId, mailboxes)
       setResult(res)
-      if (res.created > 0 && res.errors.length === 0) {
+      if ((res.created ?? 0) > 0 && res.errors.length === 0) {
         setTimeout(() => {
           setOpen(false)
           setFirstName('')
@@ -192,12 +192,12 @@ export default function BulkCreateForm({ domainId, domain, provider: _provider }
       </p>
 
       {/* Feedback */}
-      {result && result.created > 0 && (
+      {result && (result.created ?? 0) > 0 && (
         <p className="text-sm text-emerald-400 flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
-          {result.created} boîte{result.created > 1 ? 's' : ''} créée{result.created > 1 ? 's' : ''} avec succès !
+          {result.created ?? 0} boîte{(result.created ?? 0) > 1 ? 's' : ''} créée{(result.created ?? 0) > 1 ? 's' : ''} avec succès !
         </p>
       )}
       {result && result.errors && result.errors.length > 0 && (
