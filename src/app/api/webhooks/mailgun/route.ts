@@ -37,8 +37,8 @@ export async function POST(request: Request) {
 
   const today = new Date().toISOString().split('T')[0]
 
-  if (event === 'bounced') {
-    const severity = (eventData['severity'] as string) ?? 'permanent'
+  if (event === 'permanent_fail' || event === 'temporary_fail' || event === 'bounced') {
+    const severity = event === 'temporary_fail' ? 'temporary' : 'permanent'
     await Promise.all([
       supabase.from('emails').update({ status: 'bounced' }).eq('id', emailRecord.id),
       supabase.from('campaign_contacts')

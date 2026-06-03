@@ -141,7 +141,7 @@ export async function setupMailgunWebhooks(): Promise<{ error?: string; success?
   if (!appUrl) return { error: 'NEXT_PUBLIC_APP_URL manquant' }
 
   const webhookUrl = `${appUrl}/api/webhooks/mailgun`
-  const events = ['bounced', 'complained', 'unsubscribed', 'opened', 'clicked']
+  const events = ['permanent_fail', 'temporary_fail', 'complained', 'unsubscribed', 'opened', 'clicked']
 
   // Detect region (US then EU)
   let baseUrl = 'https://api.mailgun.net'
