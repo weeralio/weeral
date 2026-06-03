@@ -4,6 +4,7 @@ import Link from 'next/link'
 import DomainActions from './domain-actions'
 import DomainManage from './domain-manage'
 import AddSenderIdentityForm from './add-sender-identity-form'
+import BulkCreateForm from './bulk-create-form'
 import { getUserProvider } from '../actions'
 import WarmupChart from '@/components/charts/warmup-chart'
 import WarmupJourney from '@/components/dashboard/warmup-journey'
@@ -139,12 +140,15 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
       ═══════════════════════════════════════════════════════════════════════ */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <CardTitle>Boîtes d&apos;envoi</CardTitle>
               <CardDescription>Warmup indépendant par adresse</CardDescription>
             </div>
-            <span className="text-xs text-[#475569]">{identities.length} adresse{identities.length !== 1 ? 's' : ''}</span>
+            <div className="flex items-center gap-3">
+              <BulkCreateForm domainId={id} domain={domain.domain} provider={provider} />
+              <span className="text-xs text-[#475569]">{identities.length} adresse{identities.length !== 1 ? 's' : ''}</span>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">

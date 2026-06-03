@@ -194,6 +194,54 @@ export async function addSenderIdentity(prevState: State, formData: FormData): P
   return { success: `${email} ajouté.` }
 }
 
+// ─── Bulk create sender identities ───────────────────────────────────────────
+
+export async function addSenderIdentitiesBulk(
+  domainId: string,
+  mailboxes: Array<{ prefix: string; displayName: string }>,
+): Promise<{ created: number; errors: string[] }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { created: 0, errors: ['Non authentifié'] }
+
+  const { data: domainData } = await supabase
+    .from('domains')
+    .select('domain')
+    .eq('id', domainId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!domainData) return { created: 0, errors: ['Domaine introuvable'] }
+
+  const provider = await getUserProvider(user.id)
+  const sesVerified = provider !== 'aws'
+
+  const rows = mailboxes
+    .filter(m => m.prefix.trim())
+    .map(m => ({
+      user_id: user.id,
+      domain_id: domainId,
+      email: `${m.prefix.trim().toLowerCase()}@${domainData.domain}`,
+      display_name: m.displayName.trim() || null,
+      ses_verified: sesVerified,
+    }))
+
+  if (!rows.length) return { created: 0, errors: ['Aucune adresse valide'] }
+
+  const { data, error } = await supabase
+    .from('sender_identities')
+    .insert(rows)
+    .select('id')
+
+  if (error) {
+    if (error.code === '23505') return { created: 0, errors: ['Une ou plusieurs adresses existent déjà'] }
+    return { created: 0, errors: [error.message] }
+  }
+
+  revalidatePath(`/dashboard/domaines/${domainId}`)
+  return { created: data?.length ?? 0, errors: [] }
+}
+
 // ─── AWS SES: verify sender email ────────────────────────────────────────────
 
 export async function verifySenderEmail(identityId: string, domainId: string): Promise<{ error?: string; success?: string }> {
