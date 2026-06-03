@@ -92,7 +92,7 @@ function PaymentForm({
             conditions générales de vente
           </Link>{' '}
           et la{' '}
-          <Link href="/privacy" target="_blank" className="text-[#8b5cf6] hover:underline">
+          <Link href="/confidentialite" target="_blank" className="text-[#8b5cf6] hover:underline">
             politique de confidentialité
           </Link>
         </span>
