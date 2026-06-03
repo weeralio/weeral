@@ -36,13 +36,13 @@ export async function sendViaProvider(userId: string, params: MailParams): Promi
   // Fall back to provider_configs
   const { data: config } = await supabase
     .from('provider_configs')
-    .select('provider, api_key')
+    .select('provider, api_key_encrypted')
     .eq('user_id', userId)
     .single()
 
   if (!config) throw new Error('Aucun expéditeur configuré pour cet utilisateur')
 
-  const apiKey = decrypt(config.api_key)
+  const apiKey = decrypt(config.api_key_encrypted)
 
   switch (config.provider) {
     case 'brevo':
