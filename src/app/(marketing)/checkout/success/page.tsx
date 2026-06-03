@@ -1,44 +1,38 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { PLAN_META, getStripe, type PlanId, type Billing } from '@/lib/stripe'
+import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import type Stripe from 'stripe'
 
 export const metadata: Metadata = { title: 'Paiement confirmé — Weeral' }
 
-async function syncSubscription(subscriptionId: string) {
+async function syncSubscription(subscriptionId: string, sessionUserId: string | null) {
   try {
     const stripe = getStripe()
     const sub    = await stripe.subscriptions.retrieve(subscriptionId)
 
-    if (sub.status !== 'active' && sub.status !== 'trialing') return
-
     const customerId = sub.customer as string
     const customer   = await stripe.customers.retrieve(customerId) as Stripe.Customer
     const email      = customer.email ?? ''
-    const meta       = sub.metadata ?? {}
-    const plan       = (meta.plan   || customer.metadata?.plan)   ?? 'starter'
-    const billing    = (meta.billing || customer.metadata?.billing) ?? 'monthly'
 
-    let userId = meta.user_id || customer.metadata?.user_id || null
-
-    if (!userId && email) {
-      const admin = createAdmin(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      )
-      const { data: users } = await admin.auth.admin.listUsers()
-      const match = users?.users?.find(u => u.email === email)
-      if (match) userId = match.id
-    }
-
-    const periodEnd = (sub as unknown as { current_period_end: number }).current_period_end
+    const subMeta  = sub.metadata ?? {}
+    const custMeta = customer.metadata ?? {}
+    const plan    = subMeta.plan    || custMeta.plan    || 'starter'
+    const billing = subMeta.billing || custMeta.billing || 'monthly'
 
     const admin = createAdmin(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
-    await admin.from('subscriptions').upsert({
+
+    // Priority: 1) logged-in session user, 2) subscription/customer metadata
+    let userId: string | null = sessionUserId
+    if (!userId) userId = subMeta.user_id || custMeta.user_id || null
+
+    const periodEnd = (sub as unknown as { current_period_end: number }).current_period_end
+
+    const { error } = await admin.from('subscriptions').upsert({
       stripe_customer_id:     customerId,
       stripe_subscription_id: sub.id,
       user_id:                userId,
@@ -49,6 +43,9 @@ async function syncSubscription(subscriptionId: string) {
       current_period_end:     periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
       updated_at:             new Date().toISOString(),
     }, { onConflict: 'stripe_subscription_id' })
+
+    if (error) console.error('[checkout/success] upsert error', error)
+    else console.log('[checkout/success] subscription synced', { subId: sub.id, userId, status: sub.status })
   } catch (err) {
     console.error('[checkout/success] syncSubscription failed', err)
   }
@@ -65,15 +62,18 @@ export default async function CheckoutSuccessPage({
   const subscriptionId = sp.sub ?? null
   const meta           = PLAN_META[plan] ?? PLAN_META.growth
 
-  // Sync subscription to DB immediately (idempotent upsert)
+  // Get logged-in user (works on marketing pages via middleware session)
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Sync subscription to DB immediately on page load
   if (subscriptionId) {
-    await syncSubscription(subscriptionId)
+    await syncSubscription(subscriptionId, user?.id ?? null)
   }
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-6">
       <div className="text-center max-w-lg">
-        {/* Check circle */}
         <div className="w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-8 shadow-[0_0_40px_rgba(16,185,129,0.15)]">
           <svg className="w-10 h-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
