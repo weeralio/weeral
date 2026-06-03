@@ -31,8 +31,7 @@ async function syncSubscription(subscriptionId: string, sessionUserId: string | 
     if (!userId) userId = subMeta.user_id || custMeta.user_id || null
 
     const periodEnd = (sub as unknown as { current_period_end: number }).current_period_end
-
-    const { error } = await admin.from('subscriptions').upsert({
+    const row = {
       stripe_customer_id:     customerId,
       stripe_subscription_id: sub.id,
       user_id:                userId,
@@ -42,10 +41,43 @@ async function syncSubscription(subscriptionId: string, sessionUserId: string | 
       status:                 sub.status,
       current_period_end:     periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
       updated_at:             new Date().toISOString(),
-    }, { onConflict: 'stripe_subscription_id' })
+    }
 
-    if (error) console.error('[checkout/success] upsert error', error)
-    else console.log('[checkout/success] subscription synced', { subId: sub.id, userId, status: sub.status })
+    // Check if a row already exists for this subscription ID
+    const { data: existing } = await admin
+      .from('subscriptions')
+      .select('id')
+      .eq('stripe_subscription_id', sub.id)
+      .maybeSingle()
+
+    let error
+    if (existing) {
+      // Update in place — avoids any unique constraint conflict
+      ;({ error } = await admin
+        .from('subscriptions')
+        .update(row)
+        .eq('stripe_subscription_id', sub.id))
+    } else {
+      // Check if there's already a row for this customer (prior subscription)
+      // and update it rather than inserting a duplicate stripe_customer_id
+      const { data: customerRow } = await admin
+        .from('subscriptions')
+        .select('id')
+        .eq('stripe_customer_id', customerId)
+        .maybeSingle()
+
+      if (customerRow) {
+        ;({ error } = await admin
+          .from('subscriptions')
+          .update(row)
+          .eq('stripe_customer_id', customerId))
+      } else {
+        ;({ error } = await admin.from('subscriptions').insert(row))
+      }
+    }
+
+    if (error) console.error('[checkout/success] DB error', error)
+    else console.log('[checkout/success] synced', { subId: sub.id, userId, status: sub.status })
   } catch (err) {
     console.error('[checkout/success] syncSubscription failed', err)
   }

@@ -20,23 +20,44 @@ async function upsertSubscriptionNow(
 ) {
   const admin = getAdminSupabase()
 
-  const resolvedUserId = userId
-
   const periodEnd = (sub as unknown as { current_period_end: number }).current_period_end
-  const { error } = await admin.from('subscriptions').upsert({
+  const row = {
     stripe_customer_id:     sub.customer as string,
     stripe_subscription_id: sub.id,
-    user_id:                resolvedUserId,
+    user_id:                userId,
     email,
     plan,
     billing,
     status:                 sub.status,
     current_period_end:     periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
     updated_at:             new Date().toISOString(),
-  }, { onConflict: 'stripe_subscription_id' })
+  }
 
-  if (error) console.error('[create-subscription] upsert error', error)
-  else console.log('[create-subscription] upsert ok', { subId: sub.id, userId: resolvedUserId, status: sub.status })
+  const { data: existing } = await admin
+    .from('subscriptions')
+    .select('id')
+    .eq('stripe_subscription_id', sub.id)
+    .maybeSingle()
+
+  let dbError
+  if (existing) {
+    ;({ error: dbError } = await admin.from('subscriptions').update(row).eq('stripe_subscription_id', sub.id))
+  } else {
+    const { data: customerRow } = await admin
+      .from('subscriptions')
+      .select('id')
+      .eq('stripe_customer_id', sub.customer as string)
+      .maybeSingle()
+
+    if (customerRow) {
+      ;({ error: dbError } = await admin.from('subscriptions').update(row).eq('stripe_customer_id', sub.customer as string))
+    } else {
+      ;({ error: dbError } = await admin.from('subscriptions').insert(row))
+    }
+  }
+
+  if (dbError) console.error('[create-subscription] DB error', dbError)
+  else console.log('[create-subscription] synced', { subId: sub.id, userId, status: sub.status })
 }
 
 export async function POST(req: NextRequest) {
