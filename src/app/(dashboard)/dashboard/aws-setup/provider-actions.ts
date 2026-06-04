@@ -160,10 +160,11 @@ export async function setupMailgunWebhooks(): Promise<{ error?: string; success?
   if (!items?.length) return { error: 'Aucun domaine trouvé dans ton compte Mailgun' }
 
   const details: string[] = []
+  let anyFailed = false
 
   for (const domain of items) {
     for (const event of events) {
-      const headers = {
+      const authHeaders = {
         Authorization: `Basic ${credentials}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       }
@@ -174,26 +175,34 @@ export async function setupMailgunWebhooks(): Promise<{ error?: string; success?
       })
 
       let ok: boolean
+      let errBody = ''
       if (checkRes.ok) {
         // Update existing webhook
         const r = await fetch(`${baseUrl}/v3/domains/${domain.name}/webhooks/${event}`, {
           method: 'PUT',
-          headers,
+          headers: authHeaders,
           body: new URLSearchParams({ url: webhookUrl }).toString(),
         })
         ok = r.ok
+        if (!ok) errBody = await r.text().catch(() => `HTTP ${r.status}`)
       } else {
         // Create new webhook
         const r = await fetch(`${baseUrl}/v3/domains/${domain.name}/webhooks`, {
           method: 'POST',
-          headers,
+          headers: authHeaders,
           body: new URLSearchParams({ id: event, url: webhookUrl }).toString(),
         })
         ok = r.ok
+        if (!ok) errBody = await r.text().catch(() => `HTTP ${r.status}`)
       }
 
-      details.push(`${domain.name} · ${event}: ${ok ? '✓' : '✗'}`)
+      if (!ok) anyFailed = true
+      details.push(`${domain.name} · ${event}: ${ok ? '✓' : `✗ ${errBody}`}`)
     }
+  }
+
+  if (anyFailed) {
+    return { error: 'Certains webhooks ont échoué', details }
   }
 
   return { success: `Webhooks configurés pour ${items.length} domaine(s)`, details }

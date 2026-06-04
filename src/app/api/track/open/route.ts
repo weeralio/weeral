@@ -26,20 +26,20 @@ export async function GET(request: Request) {
     const supabase = createServiceClient()
 
     // Mark email as opened (only if not already bounced/complained)
-    const { data: email } = await supabase
+    const { data: rows } = await supabase
       .from('emails')
       .select('id, status')
       .eq('contact_id', cid)
       .eq('campaign_id', cmpid)
-      .single()
+      .eq('status', 'sent')
+      .limit(1)
 
-    if (email && email.status === 'sent') {
+    const email = rows?.[0]
+    if (email) {
       await supabase
         .from('emails')
         .update({ status: 'opened', opened_at: new Date().toISOString() })
         .eq('id', email.id)
-
-      // open_rate is computed on-the-fly in analytics queries — no RPC needed here
     }
   } catch {
     // Never block pixel delivery on DB errors

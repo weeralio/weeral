@@ -63,10 +63,11 @@ function ProviderRow({ provider }: ProviderRowProps) {
                   setMsg(null)
                   startTransition(async () => {
                     const res = await setupMailgunWebhooks()
+                    const detailText = res.details?.join('\n') ?? ''
                     if (res.error) {
-                      setMsg({ type: 'err', text: res.error })
+                      setMsg({ type: 'err', text: `${res.error}\n${detailText}`.trim() })
                     } else {
-                      setMsg({ type: 'ok', text: res.success ?? 'Webhooks configurés ✓' })
+                      setMsg({ type: 'ok', text: `${res.success ?? 'Webhooks configurés ✓'}\n${detailText}`.trim() })
                     }
                   })
                 }}
@@ -141,9 +142,9 @@ function ProviderRow({ provider }: ProviderRowProps) {
 
       {/* Feedback */}
       {msg && (
-        <p className={`text-xs ${msg.type === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}>
+        <pre className={`text-xs whitespace-pre-wrap font-mono ${msg.type === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}>
           {msg.text}
-        </p>
+        </pre>
       )}
     </div>
   )

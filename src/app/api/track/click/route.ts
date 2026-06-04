@@ -23,14 +23,16 @@ export async function GET(request: Request) {
   try {
     const supabase = createServiceClient()
 
-    const { data: email } = await supabase
+    const { data: rows } = await supabase
       .from('emails')
       .select('id, status')
       .eq('contact_id', cid)
       .eq('campaign_id', cmpid)
-      .single()
+      .in('status', ['sent', 'opened'])
+      .limit(1)
 
-    if (email && (email.status === 'sent' || email.status === 'opened')) {
+    const email = rows?.[0]
+    if (email) {
       await supabase
         .from('emails')
         .update({ status: 'clicked', clicked_at: new Date().toISOString() })
