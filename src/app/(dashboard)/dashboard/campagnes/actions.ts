@@ -5,6 +5,7 @@ import { sendViaProvider } from '@/lib/mailer'
 import { unsubscribeUrl } from '@/lib/tokens'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { getUserPlan, getPlanLimits } from '@/lib/credits'
 
 type State = { error: string } | null
 
@@ -22,6 +23,19 @@ export async function createCampaign(prevState: State, formData: FormData): Prom
 
   if (!name || !senderIdentityId || !subject || !bodyRaw) {
     return { error: 'Tous les champs obligatoires doivent être remplis' }
+  }
+
+  const plan = await getUserPlan(user.id)
+  const limits = getPlanLimits(plan)
+  if (limits.activeCampaigns !== Infinity) {
+    const { count } = await supabase
+      .from('campaigns')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .in('status', ['running', 'paused', 'draft'])
+    if ((count ?? 0) >= limits.activeCampaigns) {
+      return { error: `Limite de ${limits.activeCampaigns} campagnes atteinte pour le plan Starter. Passez au plan Growth pour des campagnes illimitées.` }
+    }
   }
 
   // Si l'utilisateur a écrit du texte brut (pas de balise HTML), on le convertit

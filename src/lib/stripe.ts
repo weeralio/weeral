@@ -7,6 +7,12 @@ export const PLAN_META = {
 export const FREE_CONTACTS_LIMIT = 100
 export const FREE_EMAILS_LIMIT   = 100
 
+export const PLAN_LIMITS = {
+  starter: { domains: 3,        mailboxes: 5,        activeCampaigns: 3 },
+  growth:  { domains: 10,       mailboxes: 20,       activeCampaigns: Infinity },
+  agency:  { domains: Infinity, mailboxes: Infinity, activeCampaigns: Infinity },
+} as const
+
 export type PlanId = keyof typeof PLAN_META
 export type Billing = 'monthly' | 'annual'
 

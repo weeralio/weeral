@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSESClient, initDomainDkim, getDomainTxtRecord, getDomainVerificationStatus, verifyEmailIdentity } from '@/lib/ses'
 import { revalidatePath } from 'next/cache'
+import { getUserPlan, getPlanLimits } from '@/lib/credits'
 
 type State = { error: string } | { success: string } | null
 
@@ -39,6 +40,15 @@ export async function addDomain(prevState: State, formData: FormData): Promise<S
 
   const domain = (formData.get('domain') as string)?.toLowerCase().trim()
   if (!domain) return { error: 'Domaine requis' }
+
+  const plan = await getUserPlan(user.id)
+  const limits = getPlanLimits(plan)
+  if (limits.domains !== Infinity) {
+    const { count } = await supabase.from('domains').select('*', { count: 'exact', head: true }).eq('user_id', user.id)
+    if ((count ?? 0) >= limits.domains) {
+      return { error: `Limite de ${limits.domains} domaine(s) atteinte pour votre plan. Passez au plan supérieur pour en ajouter davantage.` }
+    }
+  }
 
   const { error } = await supabase.from('domains').insert({ user_id: user.id, domain })
   if (error) {
@@ -163,6 +173,15 @@ export async function addSenderIdentity(prevState: State, formData: FormData): P
 
   if (!emailPrefix || !domainId) return { error: 'Tous les champs sont requis' }
 
+  const plan = await getUserPlan(user.id)
+  const limits = getPlanLimits(plan)
+  if (limits.mailboxes !== Infinity) {
+    const { count } = await supabase.from('sender_identities').select('*', { count: 'exact', head: true }).eq('user_id', user.id)
+    if ((count ?? 0) >= limits.mailboxes) {
+      return { error: `Limite de ${limits.mailboxes} boîte(s) mail atteinte pour votre plan. Passez au plan supérieur pour en ajouter davantage.` }
+    }
+  }
+
   const { data: domainData } = await supabase
     .from('domains')
     .select('domain')
@@ -227,6 +246,15 @@ export async function addSenderIdentitiesBulk(
     }))
 
   if (!rows.length) return { created: 0, errors: ['Aucune adresse valide'] }
+
+  const plan = await getUserPlan(user.id)
+  const limits = getPlanLimits(plan)
+  if (limits.mailboxes !== Infinity) {
+    const { count: existing } = await supabase.from('sender_identities').select('*', { count: 'exact', head: true }).eq('user_id', user.id)
+    const remaining = limits.mailboxes - (existing ?? 0)
+    if (remaining <= 0) return { created: 0, errors: [`Limite de ${limits.mailboxes} boîtes mail atteinte pour votre plan.`] }
+    if (rows.length > remaining) rows.splice(remaining)
+  }
 
   const { data, error } = await supabase
     .from('sender_identities')

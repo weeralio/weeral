@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { getUserPlan } from '@/lib/credits'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
   active:          { label: 'Active',          color: 'text-emerald-400', dot: 'bg-emerald-400 animate-pulse' },
@@ -22,6 +23,37 @@ const PHASE_COLORS: Record<number, string> = {
 export default async function CampagnesIAPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+
+  const plan = await getUserPlan(user!.id)
+  if (!plan || plan === 'starter') {
+    return (
+      <div className="max-w-lg space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Campagnes IA</h1>
+          <p className="text-sm text-[#475569] mt-1">Génération et gestion de campagnes par intelligence artificielle</p>
+        </div>
+        <div className="bg-[#0d0d1c] border border-[#8b5cf6]/30 rounded-2xl p-8 text-center space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 flex items-center justify-center mx-auto">
+            <svg className="w-7 h-7 text-[#8b5cf6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-white font-semibold text-lg">Fonctionnalité non disponible</p>
+            <p className="text-sm text-[#475569] mt-2 max-w-sm mx-auto">
+              La génération de campagnes par IA est réservée aux plans <span className="text-[#a78bfa]">Growth</span> et <span className="text-amber-400">Agency</span>.
+            </p>
+          </div>
+          <Link
+            href="/pricing"
+            className="inline-block mt-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white text-sm font-medium hover:from-[#6d28d9] hover:to-[#7c3aed] transition-all"
+          >
+            Passer au plan Growth →
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   const [{ data: campaigns }, { data: pendingRequests }] = await Promise.all([
     supabase
