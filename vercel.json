@@ -6,11 +6,11 @@
     },
     {
       "path": "/api/cron/send",
-      "schedule": "0 8 * * *"
+      "schedule": "0 16 * * *"
     },
     {
       "path": "/api/cron/sequences",
-      "schedule": "0 8 * * *"
+      "schedule": "0 16 * * *"
     }
   ]
 }
