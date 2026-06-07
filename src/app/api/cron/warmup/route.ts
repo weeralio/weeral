@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import {
   getDailyVolumeForMailbox,
   getContentType,
@@ -11,7 +11,155 @@ import {
   type SuspensionStep,
   type MailboxMetrics,
 } from '@/lib/warmup'
+import { sendViaProvider } from '@/lib/mailer'
 import { NextResponse } from 'next/server'
+
+// ─── Warmup send helpers ──────────────────────────────────────────────────────
+
+type SendJob = {
+  mailboxId:    string
+  userId:       string
+  domainId:     string
+  email:        string
+  displayName:  string | null
+  warmupDay:    number
+  volume:       number
+}
+
+async function processWarmupSend(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  job: SendJob,
+): Promise<number> {
+  const phase =
+    job.warmupDay <= 8  ? 'j4_j8' :
+    job.warmupDay === 9 ? 'j9' : 'j10_j14'
+
+  // Find active warmup campaign for this mailbox
+  const { data: campaigns } = await supabase
+    .from('warmup_campaigns')
+    .select('id, list_ids, mailbox_ids, cta_url')
+    .eq('user_id', job.userId)
+    .eq('status', 'active')
+    .contains('mailbox_ids', [job.mailboxId])
+    .limit(1)
+
+  const campaign = campaigns?.[0]
+  if (!campaign) return 0
+
+  // Get mailbox index within the campaign to pick the right variant
+  const mailboxIds = campaign.mailbox_ids as string[]
+  const mailboxIndex = mailboxIds.indexOf(job.mailboxId)
+
+  // Get available messages for this phase
+  const { data: msgs } = await supabase
+    .from('warmup_messages')
+    .select('id, subject, body_html, variant_index')
+    .eq('warmup_campaign_id', campaign.id)
+    .eq('phase', phase)
+    .order('variant_index')
+
+  if (!msgs?.length) return 0
+
+  // Pick variant based on mailbox position (round-robin)
+  const msg = msgs[mailboxIndex % msgs.length]
+  if (!msg) return 0
+
+  // Get already-sent contact IDs for this mailbox
+  const { data: sentRows } = await supabase
+    .from('warmup_sends')
+    .select('contact_id')
+    .eq('warmup_campaign_id', campaign.id)
+    .eq('mailbox_id', job.mailboxId)
+
+  const sentIds = (sentRows ?? []).map((r: { contact_id: string }) => r.contact_id)
+
+  // Get unsent contacts from configured lists
+  const listIds = campaign.list_ids as string[]
+  let query
+
+  if (listIds.length > 0) {
+    let membersQuery = supabase
+      .from('contact_list_members')
+      .select('contact_id, contacts!inner(id, email, first_name, last_name, company, unsubscribed)')
+      .in('list_id', listIds)
+      .eq('contacts.unsubscribed', false)
+      .limit(job.volume)
+    if (sentIds.length > 0) {
+      membersQuery = membersQuery.not('contact_id', 'in', `(${sentIds.join(',')})`)
+    }
+    const { data: members } = await membersQuery
+    query = members
+  } else {
+    // All contacts
+    let q = supabase
+      .from('contacts')
+      .select('id, email, first_name, last_name, company')
+      .eq('user_id', job.userId)
+      .eq('unsubscribed', false)
+      .limit(job.volume)
+    if (sentIds.length > 0) {
+      q = q.not('id', 'in', `(${sentIds.join(',')})`)
+    }
+    const { data } = await q
+    query = data?.map((c: { id: string; email: string; first_name: string | null; last_name: string | null; company: string | null }) => ({ contact_id: c.id, contacts: c }))
+  }
+
+  const contactRows = query ?? []
+  if (!contactRows.length) return 0
+
+  let sent = 0
+  for (const row of contactRows) {
+    const contactRaw = row.contacts ?? row
+    const contact = Array.isArray(contactRaw) ? contactRaw[0] : contactRaw
+    if (!contact?.email) continue
+
+    const subject = interpolateWarmup(msg.subject, contact)
+    const bodyHtml = interpolateWarmup(msg.body_html, contact)
+
+    try {
+      await sendViaProvider(job.userId, {
+        from:       job.email,
+        fromName:   job.displayName ?? job.email,
+        to:         contact.email,
+        subject,
+        htmlBody:   bodyHtml,
+      })
+
+      await supabase.from('warmup_sends').insert({
+        warmup_campaign_id: campaign.id,
+        mailbox_id:         job.mailboxId,
+        contact_id:         row.contact_id ?? contact.id,
+        user_id:            job.userId,
+        warmup_day:         job.warmupDay,
+      })
+
+      sent++
+    } catch (err) {
+      console.error(`[warmup-send] Failed to send to ${contact.email}:`, err)
+    }
+  }
+
+  // Update sent_today counter
+  if (sent > 0) {
+    await supabase
+      .from('sender_identities')
+      .update({ sent_today: sent })
+      .eq('id', job.mailboxId)
+  }
+
+  return sent
+}
+
+function interpolateWarmup(
+  template: string,
+  contact: { first_name?: string | null; last_name?: string | null; company?: string | null },
+): string {
+  return template
+    .replace(/\{\{first_name\}\}/g, contact.first_name ?? '')
+    .replace(/\{\{last_name\}\}/g,  contact.last_name  ?? '')
+    .replace(/\{\{company\}\}/g,    contact.company    ?? '')
+}
 
 // Cron : 5h UTC chaque jour via Trigger.dev
 // Authorization: Bearer <CRON_SECRET>
@@ -22,14 +170,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const today = new Date().toISOString().split('T')[0]
 
   // ── 1. Fetch all active mailboxes with warmup state ────────────────────────
   const { data: mailboxes, error: mbError } = await supabase
     .from('sender_identities')
     .select(`
-      id, email, user_id, domain_id,
+      id, email, display_name, user_id, domain_id,
       warmup_day, warmup_status, daily_volume,
       hard_bounce_rate, soft_bounce_rate, open_rate, click_rate,
       complaint_rate, unsub_rate,
@@ -94,10 +242,11 @@ export async function POST(request: Request) {
   }
 
   // ── 5. Process each mailbox ────────────────────────────────────────────────
-  const stats = { processed: 0, resting: 0, suspended: 0, restricted: 0, active: 0, alerts: 0 }
+  const stats = { processed: 0, resting: 0, suspended: 0, restricted: 0, active: 0, alerts: 0, emailsSent: 0 }
   // Supabase builders are thenables but not typed as Promise<unknown>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dbUpdates: PromiseLike<any>[] = []
+  const sendJobs: SendJob[] = []
 
   for (const mailbox of mailboxes ?? []) {
     const nextDay = (mailbox.warmup_day ?? 1) + 1
@@ -245,7 +394,7 @@ export async function POST(request: Request) {
     }
 
     // ─── D. Compute today's volume ─────────────────────────────────────────
-    const planned = getDailyVolumeForMailbox(nextDay, mailbox.daily_volume ?? 50)
+    const planned = getDailyVolumeForMailbox(nextDay, mailbox.daily_volume ?? 5)
     const suspStep = (monitoringResult?.nextStep ?? mailbox.suspension_step ?? 0) as SuspensionStep
     const effective = getEffectiveVolume(planned, suspStep)
     const contentType = getContentType(nextDay)
@@ -277,6 +426,19 @@ export async function POST(request: Request) {
         last_warmup_at: new Date().toISOString(),
       }).eq('id', mailbox.id)
     )
+
+    // ─── E2. Queue email sends ─────────────────────────────────────────────
+    if (effective > 0 && newStatus !== 'completed') {
+      sendJobs.push({
+        mailboxId:   mailbox.id,
+        userId:      mailbox.user_id,
+        domainId:    mailbox.domain_id,
+        email:       mailbox.email,
+        displayName: (mailbox as { display_name?: string | null }).display_name ?? null,
+        warmupDay:   nextDay,
+        volume:      effective,
+      })
+    }
 
     // ─── F. Create today's event record ───────────────────────────────────
     dbUpdates.push(upsertEvent(supabase, {
@@ -333,10 +495,60 @@ export async function POST(request: Request) {
     }
   }
 
-  await Promise.all(dbUpdates)
+  await Promise.allSettled(dbUpdates)
+
+  // ── 7. Mark domains as warmed_up when all mailboxes reach J14 ─────────────
+  const completedByDomain: Record<string, string> = {}
+  for (const mb of mailboxes ?? []) {
+    if (mb.warmup_status === 'completed' || (mb.warmup_day ?? 0) >= 14) {
+      completedByDomain[mb.domain_id] = mb.user_id
+    }
+  }
+  for (const [domainId, userId] of Object.entries(completedByDomain)) {
+    const allForDomain = (mailboxes ?? []).filter(m => m.domain_id === domainId)
+    const allComplete  = allForDomain.every(m => (m.warmup_day ?? 0) >= 14 || m.warmup_status === 'completed')
+    if (allComplete && allForDomain.length > 0) {
+      await supabase
+        .from('domains')
+        .update({ status: 'warmed_up' })
+        .eq('id', domainId)
+        .neq('status', 'blocked')
+        .neq('status', 'warmed_up')
+      try {
+        await supabase.from('ai_notifications').insert({
+          user_id:      userId,
+          type:         'tip',
+          title:        'Domaine warmé avec succès',
+          message:      `Le warmup de ton domaine est terminé. Tu peux maintenant lancer tes campagnes cold email.`,
+          action_label: 'Voir le domaine',
+          action_href:  `/dashboard/domaines/${domainId}`,
+        })
+      } catch { /* notification non critique */ }
+    }
+  }
+
+  // ── 8. Execute warmup email sends ─────────────────────────────────────────
+  for (const job of sendJobs) {
+    const sent = await processWarmupSend(supabase, job)
+    stats.emailsSent += sent
+  }
+
+  // Update actual_volume on events
+  if (sendJobs.length > 0) {
+    for (const job of sendJobs) {
+      await supabase
+        .from('warmup_mailbox_events')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('mailbox_id', job.mailboxId)
+        .eq('date', today)
+        .eq('status', 'pending')
+    }
+  }
 
   return NextResponse.json({ ok: true, date: today, stats })
 }
+
+export const GET = POST
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

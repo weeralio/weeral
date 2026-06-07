@@ -3,6 +3,7 @@
 import { useActionState, useState, useRef, useEffect } from 'react'
 import { createCampaign } from '../actions'
 import ListPicker, { type ContactList } from '@/components/dashboard/list-picker'
+import EmailDesigner from '@/components/email-designer/EmailDesigner'
 
 type Identity = { id: string; email: string; display_name: string | null; domains: { domain: string } | { domain: string }[] | null }
 
@@ -66,6 +67,7 @@ interface Props {
 export default function NewCampaignForm({ identities, contactCount, lists }: Props) {
   const [state, formAction, pending] = useActionState(createCampaign, null)
   const [listIds, setListIds] = useState<string[]>([])
+  const [bodyHtml, setBodyHtml] = useState('')
 
   const selectedCount = listIds.length === 0
     ? contactCount
@@ -111,16 +113,8 @@ export default function NewCampaignForm({ identities, contactCount, lists }: Pro
         {/* Corps */}
         <div>
           <label className="block text-sm font-medium text-[#94a3b8] mb-1.5">Corps de l&apos;email</label>
-          <textarea
-            name="body_html"
-            required
-            rows={9}
-            placeholder={"Bonjour {{first_name}},\n\nJe me permets de vous contacter…"}
-            className="w-full px-3 py-2.5 bg-[#07070f] border border-[#1e1e3f] rounded-xl text-sm text-white placeholder-[#3b3b6f] focus:outline-none focus:border-[#8b5cf6]/50 transition-colors resize-y"
-          />
-          <p className="mt-1.5 text-xs text-[#475569]">
-            Variables : <code className="text-[#8b5cf6]">{'{{first_name}}'}</code>, <code className="text-[#8b5cf6]">{'{{last_name}}'}</code>, <code className="text-[#8b5cf6]">{'{{company}}'}</code>
-          </p>
+          <input type="hidden" name="body_html" value={bodyHtml} />
+          <EmailDesigner value={bodyHtml} onChange={setBodyHtml} />
         </div>
 
         {/* Audience */}

@@ -5,7 +5,7 @@ export const sendTask = schedules.task({
   id: 'hourly-send',
   cron: '0 * * * *',
   run: async () => {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.weeral.io'
     const secret = process.env.CRON_SECRET
 
     const response = await fetch(`${baseUrl}/api/cron/send`, {

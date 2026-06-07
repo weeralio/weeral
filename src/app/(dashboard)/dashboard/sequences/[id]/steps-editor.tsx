@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { updateStep, deleteStep } from '../actions'
+import EmailDesigner from '@/components/email-designer/EmailDesigner'
 
 interface Step {
   id: string
@@ -165,21 +166,10 @@ export default function StepsEditor({ sequenceId, steps: initial }: { sequenceId
 
                 {/* Body */}
                 <div className="space-y-1.5">
-                  <label className="text-xs text-[#475569]">Corps (HTML)</label>
-                  <textarea
+                  <label className="text-xs text-[#475569]">Corps du message</label>
+                  <EmailDesigner
                     value={ed.body_html}
-                    onChange={e => setField(step.id, 'body_html', e.target.value)}
-                    rows={7}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#0a0a18] border border-[#1e1e3f] text-white text-sm font-mono focus:outline-none focus:border-violet-500/50 resize-none"
-                  />
-                </div>
-
-                {/* Preview */}
-                <div className="space-y-1.5">
-                  <p className="text-xs text-[#475569]">Aperçu</p>
-                  <div
-                    className="px-4 py-3 rounded-xl bg-white/5 border border-[#1e1e3f] text-sm text-[#94a3b8]"
-                    dangerouslySetInnerHTML={{ __html: ed.body_html.replace(/\{\{first_name\}\}/g, 'Marie') }}
+                    onChange={html => setField(step.id, 'body_html', html)}
                   />
                 </div>
 

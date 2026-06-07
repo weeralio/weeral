@@ -7,11 +7,11 @@ import {
   GetIdentityVerificationAttributesCommand,
   GetSendQuotaCommand,
 } from '@aws-sdk/client-ses'
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/crypto'
 
 export async function getSESClient(userId: string): Promise<SESClient> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { data: creds } = await supabase
     .from('aws_credentials')
     .select('access_key_id, secret_access_key, aws_region')

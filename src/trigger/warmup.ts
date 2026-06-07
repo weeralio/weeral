@@ -6,7 +6,7 @@ export const warmupTask = schedules.task({
   id: 'daily-warmup',
   cron: '0 5 * * *',
   run: async () => {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.weeral.io'
     const secret = process.env.CRON_SECRET
 
     const response = await fetch(`${baseUrl}/api/cron/warmup`, {

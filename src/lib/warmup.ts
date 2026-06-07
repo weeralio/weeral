@@ -1,22 +1,16 @@
 // ─── Volume schedule ──────────────────────────────────────────────────────────
-// J1–J3  : repos obligatoire (aucun envoi)
-// J4–J11 : rampe fixe
-// J12+   : +10%/jour, plafond 5 000/boîte
-
-const FIXED_SCHEDULE: Record<number, number> = {
-  1: 0, 2: 0, 3: 0,
-  4: 5, 5: 10, 6: 13, 7: 16, 8: 19, 9: 22,
-  10: 30,
-  11: 50,
-}
+// J1–J3 : repos obligatoire (aucun envoi)
+// J4    : 5 emails (démarrage)
+// J5+   : +10 %/jour, plafond 5 000/boîte
+// Warmup considéré terminé à J14
 
 const MAX_VOLUME = 5_000
 const GROWTH_RATE = 1.1
-export const WARMUP_TOTAL_DAYS = 30  // durée estimée pour atteindre le plafond
+export const WARMUP_TOTAL_DAYS = 14  // domaine marqué warmed_up au J14
 
-export function getDailyVolumeForMailbox(warmupDay: number, previousVolume = 50): number {
+export function getDailyVolumeForMailbox(warmupDay: number, previousVolume = 5): number {
   if (warmupDay <= 3) return 0
-  if (warmupDay <= 11) return FIXED_SCHEDULE[warmupDay] ?? 0
+  if (warmupDay === 4) return 5
   return Math.min(Math.round(previousVolume * GROWTH_RATE), MAX_VOLUME)
 }
 
@@ -25,10 +19,7 @@ export function isRestPeriod(warmupDay: number): boolean {
 }
 
 export function isWarmupComplete(warmupDay: number): boolean {
-  // Complete when mailbox has been at max volume for 2+ consecutive days
-  // Simplified: day > 11 and volume reached max
-  const vol = getDailyVolumeForMailbox(warmupDay, MAX_VOLUME)
-  return vol >= MAX_VOLUME
+  return warmupDay >= WARMUP_TOTAL_DAYS
 }
 
 // J4–J11 : 50% des destinataires = boîtes contrôlées

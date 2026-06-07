@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { sendViaProvider } from '@/lib/mailer'
 import { NextResponse } from 'next/server'
 
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const now = new Date().toISOString()
 
   // Fetch enrollments due for sending
@@ -30,6 +30,7 @@ export async function POST(request: Request) {
   if (!dueEnrollments?.length) return NextResponse.json({ ok: true, sent: 0 })
 
   let totalSent = 0
+  const domainSentAdded: Record<string, number> = {}
 
   for (const enrollment of dueEnrollments) {
     const sequence = Array.isArray(enrollment.sequences) ? enrollment.sequences[0] : enrollment.sequences
@@ -40,8 +41,9 @@ export async function POST(request: Request) {
     if (!contact?.email || !identity?.email || !sequence?.user_id) continue
     if (!domain || domain.status === 'blocked') continue
 
-    // Domain daily limit check
-    const remaining = (domain.daily_limit ?? 100) - (domain.sent_today ?? 0)
+    // Domain daily limit check — account for sends already done this run
+    const alreadySentThisRun = domainSentAdded[domain.id] ?? 0
+    const remaining = (domain.daily_limit ?? 100) - (domain.sent_today ?? 0) - alreadySentThisRun
     if (remaining <= 0) continue
 
     // Get the current step
@@ -131,20 +133,42 @@ export async function POST(request: Request) {
           next_send_at: nextSendAt,
           completed_at: completedAt,
         }).eq('id', enrollment.id),
-        // Update domain sent_today
-        supabase.from('domains').update({ sent_today: (domain.sent_today ?? 0) + 1 }).eq('id', domain.id),
-        // Warmup log
-        supabase.rpc('increment_warmup_log', { p_domain_id: domain.id, p_date: today }),
       ])
+      // Analytics — non-blocking
+      void supabase.rpc('increment_warmup_log', { p_domain_id: domain.id, p_date: today })
 
+      domainSentAdded[domain.id] = (domainSentAdded[domain.id] ?? 0) + 1
       totalSent++
     } catch (err) {
       console.error(`[sequences cron] Failed to send enrollment ${enrollment.id}:`, err)
     }
   }
 
+  // Update sent_today per domain once at the end
+  await Promise.all(
+    Object.entries(domainSentAdded).map(([domainId, added]) => {
+      const enrollment = dueEnrollments.find(e => {
+        const id = Array.isArray(e.sender_identities) ? e.sender_identities[0] : e.sender_identities
+        const d = Array.isArray(id?.domains) ? id.domains[0] : id?.domains
+        return d?.id === domainId
+      })
+      const identity = enrollment
+        ? (Array.isArray(enrollment.sender_identities) ? enrollment.sender_identities[0] : enrollment.sender_identities)
+        : null
+      const domainData = identity
+        ? (Array.isArray(identity.domains) ? identity.domains[0] : identity.domains)
+        : null
+      const originalSentToday = domainData?.sent_today ?? 0
+      return supabase.from('domains')
+        .update({ sent_today: originalSentToday + added })
+        .eq('id', domainId)
+    })
+  )
+
   return NextResponse.json({ ok: true, sent: totalSent })
 }
+
+export const GET = POST
 
 function interpolate(
   template: string,

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { sendViaProvider } from '@/lib/mailer'
 import { unsubscribeUrl } from '@/lib/tokens'
 import { NextResponse } from 'next/server'
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const supabase = await createClient()
+  const supabase = createServiceClient()
 
   // Récupérer toutes les campagnes en cours
   const { data: campaigns } = await supabase
@@ -35,13 +35,13 @@ export async function POST(request: Request) {
 
     if (!domain || domain.status === 'blocked' || domain.status === 'paused') continue
 
-    const remaining = domain.daily_limit - domain.sent_today
+    const remaining = (domain.daily_limit ?? 200) - (domain.sent_today ?? 0)
     if (remaining <= 0) continue
 
     // Contacts à envoyer pour cette campagne
     const { data: pendingContacts } = await supabase
       .from('campaign_contacts')
-      .select('id, contacts(email, first_name, last_name, company)')
+      .select('id, contacts(id, email, first_name, last_name, company)')
       .eq('campaign_id', campaign.id)
       .eq('status', 'pending')
       .limit(remaining)
@@ -53,6 +53,7 @@ export async function POST(request: Request) {
     }
 
     const today = new Date().toISOString().split('T')[0]
+    let sentForDomain = 0
 
     for (const cc of pendingContacts) {
       const contact = Array.isArray(cc.contacts) ? cc.contacts[0] : cc.contacts
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
       const subject = interpolate(campaign.subject, contact)
 
       try {
-        const contactId = (cc.contacts as unknown as { id: string })?.id ?? ''
+        const contactId = contact.id ?? ''
         const messageId = await sendViaProvider(campaign.user_id, {
           from: identity!.email,
           fromName: identity!.display_name ?? identity!.email,
@@ -78,24 +79,33 @@ export async function POST(request: Request) {
           supabase.from('campaign_contacts').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', cc.id),
           supabase.from('emails').insert({
             campaign_id: campaign.id,
-            contact_id: (cc.contacts as unknown as { id: string })?.id ?? '',
+            contact_id: contactId,
             domain_id: domain.id,
             ses_message_id: messageId,
             status: 'sent',
           }),
-          supabase.from('domains').update({ sent_today: domain.sent_today + 1 }).eq('id', domain.id),
-          supabase.rpc('increment_warmup_log', { p_domain_id: domain.id, p_date: today }),
         ])
+        // Analytics — non-blocking
+        void supabase.rpc('increment_warmup_log', { p_domain_id: domain.id, p_date: today })
 
+        sentForDomain++
         totalSent++
       } catch {
         await supabase.from('campaign_contacts').update({ status: 'failed' }).eq('id', cc.id)
       }
     }
+
+    if (sentForDomain > 0) {
+      await supabase.from('domains')
+        .update({ sent_today: domain.sent_today + sentForDomain })
+        .eq('id', domain.id)
+    }
   }
 
   return NextResponse.json({ ok: true, sent: totalSent })
 }
+
+export const GET = POST
 
 function interpolate(template: string, contact: { first_name?: string | null; last_name?: string | null; company?: string | null }): string {
   return template

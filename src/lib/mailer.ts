@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/crypto'
 import { getSESClient, sendEmail as sesSendEmail } from '@/lib/ses'
 import { openPixelUrl, clickTrackUrl } from '@/lib/tokens'
@@ -17,7 +17,7 @@ export interface MailParams {
 }
 
 export async function sendViaProvider(userId: string, params: MailParams): Promise<string> {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
 
   const html = prepareHtml(params)
 

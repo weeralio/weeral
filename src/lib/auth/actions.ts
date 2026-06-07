@@ -37,7 +37,7 @@ export async function signupWithProfile(_: AuthState, formData: FormData): Promi
       email,
       password,
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://weeral.io'}/auth/callback`,
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://weeral.io'}/auth/callback`,
         data: {
           first_name: formData.get('firstName'),
           last_name:  formData.get('lastName'),
