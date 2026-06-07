@@ -232,7 +232,7 @@ export default async function DashboardPage() {
   // Show onboarding if not fully set up
   if (!isOperational) {
     return (
-      <>
+      <div className="max-w-2xl space-y-6">
         <CreditsBanner
           contactsUsed={limits.contactsUsed}
           emailsSent={limits.emailsSent}
@@ -244,7 +244,7 @@ export default async function DashboardPage() {
           hasDomain={hasDomain}
           hasCampaign={hasCampaign}
         />
-      </>
+      </div>
     )
   }
 
@@ -292,7 +292,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-3xl">
       <CreditsBanner
         contactsUsed={limits.contactsUsed}
         emailsSent={limits.emailsSent}
