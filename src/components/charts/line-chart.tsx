@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef } from 'react'
 
 interface DataPoint {
   date: string
@@ -27,7 +27,7 @@ const PADDING = { top: 16, right: 16, bottom: 32, left: 44 }
 const CHART_W = W - PADDING.left - PADDING.right
 
 export default function LineChart({ data, series, height = 180, noDataText = 'Aucune donnée' }: LineChartProps) {
-  const [hover, setHover] = useState<{ x: number; idx: number } | null>(null)
+  const [hover, setHover] = useState<{ cursorX: number; idx: number } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const CHART_H = height - PADDING.top - PADDING.bottom
 
@@ -39,7 +39,6 @@ export default function LineChart({ data, series, height = 180, noDataText = 'Au
     )
   }
 
-  // Compute min/max across all series
   const allValues = data.flatMap(d => series.map(s => (d[s.key] as number) ?? 0))
   const yMin = 0
   const yMax = Math.max(...allValues, 0.001)
@@ -70,37 +69,49 @@ export default function LineChart({ data, series, height = 180, noDataText = 'Au
   function onMouseMove(e: React.MouseEvent<SVGSVGElement>) {
     const rect = svgRef.current?.getBoundingClientRect()
     if (!rect) return
+
+    // Map real pixel position → SVG coordinate space
     const ratio = (e.clientX - rect.left) / rect.width
-    const svgX = ratio * W
-    const relX = svgX - PADDING.left
-    const idx = Math.round((relX / CHART_W) * (data.length - 1))
-    const clamped = Math.max(0, Math.min(data.length - 1, idx))
-    setHover({ x: toX(clamped), idx: clamped })
+    const svgX  = ratio * W
+
+    // Cursor X clamped to the chart plot area
+    const cursorX = Math.max(PADDING.left, Math.min(PADDING.left + CHART_W, svgX))
+
+    // Find nearest data point index
+    const relX   = svgX - PADDING.left
+    const rawIdx = (relX / CHART_W) * (data.length - 1)
+    const idx    = Math.max(0, Math.min(data.length - 1, Math.round(rawIdx)))
+
+    setHover({ cursorX, idx })
   }
 
-  // Y-axis ticks
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => yMin + t * yRange)
   const defaultFmt = (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v % 1 === 0 ? String(Math.round(v)) : v.toFixed(1)
+
   function fmtForSeries(s: SeriesConfig, v: number) {
     if (s.formatType === 'percent2') return `${v.toFixed(2)}%`
     if (s.formatType === 'percent3') return `${v.toFixed(3)}%`
-    if (s.formatType === 'number') return Math.round(v).toLocaleString()
+    if (s.formatType === 'number')   return Math.round(v).toLocaleString()
     return defaultFmt(v)
   }
 
-  // X-axis labels: show ~5 evenly spaced dates
   const xLabels: number[] = []
   const step = Math.max(1, Math.floor(data.length / 5))
   for (let i = 0; i < data.length; i += step) xLabels.push(i)
   if (!xLabels.includes(data.length - 1)) xLabels.push(data.length - 1)
 
-  const hovered = hover !== null ? data[hover.idx] : null
-  const tooltipX = hover ? Math.min(hover.x, W - 120) : 0
+  const hovered    = hover !== null ? data[hover.idx] : null
+  const snappedX   = hover !== null ? toX(hover.idx) : 0
+  // Tooltip: keep on screen, prefer right of cursor
+  const tooltipX   = hover
+    ? (hover.cursorX + 120 > W ? hover.cursorX - 120 : hover.cursorX + 8)
+    : 0
 
   return (
     <svg
       ref={svgRef}
       viewBox={`0 0 ${W} ${height}`}
+      preserveAspectRatio="none"
       className="w-full"
       style={{ height }}
       onMouseMove={onMouseMove}
@@ -131,16 +142,14 @@ export default function LineChart({ data, series, height = 180, noDataText = 'Au
           x={toX(i)} y={PADDING.top + CHART_H + 18}
           textAnchor="middle" fill="#475569" fontSize="10"
         >
-          {new Date(data[i].date + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+          {new Date(data[i]!.date + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
         </text>
       ))}
 
-      {/* Series: fill then line */}
+      {/* Series */}
       {series.map(s => (
         <g key={s.key}>
-          {s.fill && (
-            <path d={makeFill(s.key)} fill={s.fill} />
-          )}
+          {s.fill && <path d={makeFill(s.key)} fill={s.fill} />}
           <path
             d={makePath(s.key)}
             fill="none"
@@ -155,27 +164,27 @@ export default function LineChart({ data, series, height = 180, noDataText = 'Au
       {/* Hover */}
       {hover && hovered && (
         <>
+          {/* Vertical line follows the cursor precisely */}
           <line
-            x1={hover.x} y1={PADDING.top}
-            x2={hover.x} y2={PADDING.top + CHART_H}
+            x1={hover.cursorX} y1={PADDING.top}
+            x2={hover.cursorX} y2={PADDING.top + CHART_H}
             stroke="#3b3b6f" strokeWidth="1" strokeDasharray="3,3"
           />
-          {series.map(s => {
-            const val = (hovered[s.key] as number) ?? 0
-            return (
-              <circle
-                key={s.key}
-                cx={hover.x} cy={toY(val)}
-                r="4" fill={s.color} stroke="#0a0a18" strokeWidth="2"
-              />
-            )
-          })}
 
-          {/* Tooltip */}
-          <g transform={`translate(${tooltipX + 8}, ${PADDING.top + 4})`}>
+          {/* Dots snap to nearest data point */}
+          {series.map(s => (
+            <circle
+              key={s.key}
+              cx={snappedX} cy={toY((hovered[s.key] as number) ?? 0)}
+              r="4" fill={s.color} stroke="#0a0a18" strokeWidth="2"
+            />
+          ))}
+
+          {/* Tooltip near cursor, clamped to chart bounds */}
+          <g transform={`translate(${tooltipX}, ${PADDING.top + 4})`}>
             <rect
               x="0" y="0"
-              width="110"
+              width="112"
               height={16 + series.length * 16}
               rx="6" fill="#0a0a18" stroke="#1e1e3f" strokeWidth="1"
             />

@@ -89,6 +89,7 @@ export default function WarmupForecastChart({ points, totalMailboxes }: Props) {
     <div className="space-y-3">
       <svg
         viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
         className="w-full"
         style={{ height: '160px' }}
         aria-hidden="true"
