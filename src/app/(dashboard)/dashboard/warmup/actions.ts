@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { anthropic, MODELS } from '@/lib/anthropic'
+import { getDailyVolumeForMailbox } from '@/lib/warmup'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
@@ -213,6 +214,48 @@ export async function saveWarmupMessage(
     has_link:           phase !== 'j4_j8',
     ai_generated:       false,
   }, { onConflict: 'warmup_campaign_id,phase,variant_index' })
+
+  if (error) return { error: error.message }
+  revalidatePath(`/dashboard/warmup/${campaignId}`)
+  return {}
+}
+
+// ─── Adjust warmup day manually ──────────────────────────────────────────────
+
+export async function adjustWarmupDay(
+  mailboxId: string,
+  targetDay: number,
+  campaignId: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  // Verify the mailbox belongs to the user
+  const { data: mb } = await supabase
+    .from('sender_identities')
+    .select('id')
+    .eq('id', mailboxId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!mb) return { error: 'Boîte introuvable' }
+
+  const day = Math.max(1, Math.min(14, targetDay))
+  const warmupStatus =
+    day >= 14 ? 'completed' :
+    day >= 4  ? 'active' :
+    'resting'
+
+  const { error } = await supabase
+    .from('sender_identities')
+    .update({
+      warmup_day:    day,
+      warmup_status: warmupStatus,
+      daily_volume:  getDailyVolumeForMailbox(day),
+      sent_today:    0,
+    })
+    .eq('id', mailboxId)
 
   if (error) return { error: error.message }
   revalidatePath(`/dashboard/warmup/${campaignId}`)

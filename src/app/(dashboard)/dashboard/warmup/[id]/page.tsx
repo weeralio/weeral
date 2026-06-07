@@ -7,6 +7,7 @@ import MessageEditor from './message-editor'
 import WarmupForecastChart, { type ForecastPoint } from '@/components/charts/warmup-forecast-chart'
 import { getDailyVolumeForMailbox } from '@/lib/warmup'
 import type { WarmupPhase } from '../actions'
+import WarmupDayAdjuster from './warmup-day-adjuster'
 
 const PHASE_INFO: Record<WarmupPhase, { label: string; days: string; color: string; noLink?: boolean }> = {
   j4_j8:   { label: 'Échauffement',  days: 'J4–J8',   color: 'text-blue-400',  noLink: true },
@@ -233,6 +234,11 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
                           {mb.sent_today ?? 0}/{mb.daily_volume}/j
                         </span>
                       )}
+                      <WarmupDayAdjuster
+                        mailboxId={mb.id}
+                        campaignId={id}
+                        currentDay={day}
+                      />
                     </div>
                     {!isResting && (mb.daily_volume ?? 0) > 0 && (
                       <div className="ml-4 mt-1.5 h-1 w-full bg-[#1e1e3f] rounded-full overflow-hidden">
