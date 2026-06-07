@@ -96,7 +96,9 @@ export async function importContacts(prevState: State, formData: FormData): Prom
 
 export async function deleteContact(id: string): Promise<void> {
   const supabase = await createClient()
-  await supabase.from('contacts').delete().eq('id', id)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+  await supabase.from('contacts').delete().eq('id', id).eq('user_id', user.id)
   revalidatePath('/dashboard/contacts')
 }
 
@@ -213,6 +215,13 @@ export async function addContactsToList(listId: string, contactIds: string[]): P
 
 export async function removeContactsFromList(listId: string, contactIds: string[]): Promise<{ error?: string }> {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  // Verify list ownership before deleting members
+  const { data: list } = await supabase.from('contact_lists').select('id').eq('id', listId).eq('user_id', user.id).single()
+  if (!list) return { error: 'Liste introuvable' }
+
   const { error } = await supabase
     .from('contact_list_members')
     .delete()

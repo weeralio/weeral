@@ -64,7 +64,12 @@ export async function deleteDomain(id: string): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
-  await supabase.from('sender_identities').delete().eq('domain_id', id)
+
+  // Verify ownership before deleting child records
+  const { data: domain } = await supabase.from('domains').select('id').eq('id', id).eq('user_id', user.id).single()
+  if (!domain) return { error: 'Domaine introuvable' }
+
+  await supabase.from('sender_identities').delete().eq('domain_id', id).eq('user_id', user.id)
   await supabase.from('domains').delete().eq('id', id).eq('user_id', user.id)
   revalidatePath('/dashboard/domaines')
   return {}

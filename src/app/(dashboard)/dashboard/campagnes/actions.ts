@@ -147,9 +147,10 @@ export async function triggerSend(campaignId: string): Promise<{ sent?: number; 
 
   const { data: pendingContacts } = await supabase
     .from('campaign_contacts')
-    .select('id, contact_id, contacts(email, first_name, last_name, company)')
+    .select('id, contact_id, contacts!inner(email, first_name, last_name, company, unsubscribed)')
     .eq('campaign_id', campaignId)
     .eq('status', 'pending')
+    .eq('contacts.unsubscribed', false)
     .limit(remaining)
 
   if (!pendingContacts?.length) {
@@ -268,7 +269,9 @@ export async function sendTestEmail(campaignId: string, testEmail: string): Prom
 
 export async function deleteCampaign(campaignId: string): Promise<void> {
   const supabase = await createClient()
-  await supabase.from('campaigns').delete().eq('id', campaignId)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/dashboard/campagnes')
+  await supabase.from('campaigns').delete().eq('id', campaignId).eq('user_id', user.id)
   revalidatePath('/dashboard/campagnes')
   redirect('/dashboard/campagnes')
 }

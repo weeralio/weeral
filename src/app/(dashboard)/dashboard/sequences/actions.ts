@@ -144,7 +144,11 @@ export async function deleteStep(stepId: string, sequenceId: string): Promise<{ 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
 
-  await supabase.from('sequence_steps').delete().eq('id', stepId)
+  // Verify sequence ownership before deleting a step
+  const { data: seq } = await supabase.from('sequences').select('id').eq('id', sequenceId).eq('user_id', user.id).single()
+  if (!seq) return { error: 'Séquence introuvable' }
+
+  await supabase.from('sequence_steps').delete().eq('id', stepId).eq('sequence_id', sequenceId)
 
   // Recount and update steps_count
   const { count } = await supabase
