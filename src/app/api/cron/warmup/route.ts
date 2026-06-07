@@ -173,6 +173,9 @@ export async function POST(request: Request) {
   const supabase = createServiceClient()
   const today = new Date().toISOString().split('T')[0]
 
+  // Reset domains.sent_today once per day (warmup runs at 5h UTC, before send/sequences at 8h)
+  await supabase.from('domains').update({ sent_today: 0 }).gt('sent_today', 0)
+
   // ── 1. Fetch all active mailboxes with warmup state ────────────────────────
   const { data: mailboxes, error: mbError } = await supabase
     .from('sender_identities')
