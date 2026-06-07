@@ -190,7 +190,7 @@ export async function POST(request: Request) {
       suspension_step, suspended_until, ses_verified,
       domains!inner(id, status, user_id)
     `)
-    .in('warmup_status', ['waiting', 'resting', 'active', 'restricted', 'resuming'])
+    .in('warmup_status', ['waiting', 'resting', 'active', 'restricted', 'resuming', 'completed'])
 
   if (mbError) return NextResponse.json({ error: mbError.message }, { status: 500 })
 
@@ -253,9 +253,18 @@ export async function POST(request: Request) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dbUpdates: PromiseLike<any>[] = []
   const sendJobs: SendJob[] = []
+  // Track the effective next day for each mailbox so step-7 uses post-run values
+  const mailboxNextDay: Record<string, number> = {}
 
   for (const mailbox of mailboxes ?? []) {
+    // Already-completed mailboxes are fetched only so step-7 can see them; skip processing
+    if (mailbox.warmup_status === 'completed') {
+      mailboxNextDay[mailbox.id] = mailbox.warmup_day ?? 14
+      continue
+    }
+
     const nextDay = (mailbox.warmup_day ?? 1) + 1
+    mailboxNextDay[mailbox.id] = nextDay
 
     // ─── A. Handle resumption ──────────────────────────────────────────────
     if (mailbox.warmup_status === 'resuming') {
@@ -504,15 +513,20 @@ export async function POST(request: Request) {
   await Promise.allSettled(dbUpdates)
 
   // ── 7. Mark domains as warmed_up when all mailboxes reach J14 ─────────────
+  // Use mailboxNextDay (post-run effective day) to correctly detect just-completing mailboxes
   const completedByDomain: Record<string, string> = {}
   for (const mb of mailboxes ?? []) {
-    if (mb.warmup_status === 'completed' || (mb.warmup_day ?? 0) >= 14) {
+    const effectiveDay = mailboxNextDay[mb.id] ?? mb.warmup_day ?? 0
+    if (mb.warmup_status === 'completed' || effectiveDay >= 14) {
       completedByDomain[mb.domain_id] = mb.user_id
     }
   }
   for (const [domainId, userId] of Object.entries(completedByDomain)) {
     const allForDomain = (mailboxes ?? []).filter(m => m.domain_id === domainId)
-    const allComplete  = allForDomain.every(m => (m.warmup_day ?? 0) >= 14 || m.warmup_status === 'completed')
+    const allComplete  = allForDomain.every(m => {
+      const effectiveDay = mailboxNextDay[m.id] ?? m.warmup_day ?? 0
+      return m.warmup_status === 'completed' || effectiveDay >= 14
+    })
     if (allComplete && allForDomain.length > 0) {
       await supabase
         .from('domains')

@@ -309,6 +309,30 @@ export async function resumeWarmupCampaign(id: string): Promise<{ error?: string
 
 export async function deleteWarmupCampaign(id: string): Promise<void> {
   const supabase = await createClient()
-  await supabase.from('warmup_campaigns').delete().eq('id', id)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/dashboard/warmup')
+
+  // Fetch mailbox list before deleting (for state reset)
+  const { data: campaign } = await supabase
+    .from('warmup_campaigns')
+    .select('mailbox_ids')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!campaign) redirect('/dashboard/warmup')
+
+  await supabase.from('warmup_campaigns').delete().eq('id', id).eq('user_id', user.id)
+
+  // Reset mailboxes to initial state so they can be reused in another campaign
+  const mailboxIds = campaign.mailbox_ids as string[]
+  if (mailboxIds.length > 0) {
+    await supabase
+      .from('sender_identities')
+      .update({ warmup_status: 'waiting', warmup_day: 1, daily_volume: 0, sent_today: 0 })
+      .in('id', mailboxIds)
+      .eq('user_id', user.id)
+  }
+
   redirect('/dashboard/warmup')
 }
