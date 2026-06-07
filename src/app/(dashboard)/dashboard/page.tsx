@@ -10,10 +10,10 @@ import CreditsBanner from '@/components/credits-banner'
 // ─── Onboarding ───────────────────────────────────────────────────────────────
 
 function OnboardingBanner({
-  hasContacts, hasAws, hasDomain, hasCampaign,
+  hasContacts, hasSender, hasDomain, hasCampaign,
 }: {
   hasContacts: boolean
-  hasAws: boolean
+  hasSender: boolean
   hasDomain: boolean
   hasCampaign: boolean
 }) {
@@ -33,15 +33,15 @@ function OnboardingBanner({
     },
     {
       n: 2,
-      done: hasAws && hasDomain,
+      done: hasSender && hasDomain,
       title: 'Connecter votre infrastructure',
-      desc: hasDomain && !hasAws
-        ? 'Domaine ajouté — il reste à configurer AWS SES pour l\'envoi.'
-        : hasAws && !hasDomain
-        ? 'AWS configuré — ajoutez maintenant un domaine d\'envoi.'
-        : 'Configurez AWS SES et ajoutez un domaine d\'envoi. Weeral gère le warmup automatiquement.',
-      cta: !hasAws ? 'Configurer AWS SES' : 'Ajouter un domaine',
-      href: !hasAws ? '/dashboard/aws-setup' : '/dashboard/domaines',
+      desc: hasDomain && !hasSender
+        ? 'Domaine ajouté — connectez maintenant un expéditeur (AWS SES, Brevo, Mailgun…).'
+        : hasSender && !hasDomain
+        ? 'Expéditeur connecté — ajoutez maintenant un domaine d\'envoi.'
+        : 'Connectez un expéditeur email et ajoutez un domaine. Weeral gère le warmup automatiquement.',
+      cta: !hasSender ? 'Connecter un expéditeur' : 'Ajouter un domaine',
+      href: !hasSender ? '/dashboard/aws-setup' : '/dashboard/domaines',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
@@ -210,6 +210,7 @@ export default async function DashboardPage() {
     { data: mailboxes },
     { count: totalContacts },
     { data: awsCreds },
+    { data: providerConfig },
   ] = await Promise.all([
     supabase.from('domains').select('id, domain, status, warmup_day, daily_limit, sent_today, bounce_rate, complaint_rate').eq('user_id', user!.id),
     supabase.from('campaigns').select('*', { count: 'exact', head: true }).eq('user_id', user!.id),
@@ -217,13 +218,14 @@ export default async function DashboardPage() {
     supabase.from('sender_identities').select('id, email, domain_id, warmup_day, warmup_status, daily_volume, sent_today, open_rate, click_rate, hard_bounce_rate, complaint_rate, domains(domain)').eq('user_id', user!.id).not('warmup_status', 'is', null),
     supabase.from('contacts').select('*', { count: 'exact', head: true }).eq('user_id', user!.id).eq('unsubscribed', false),
     supabase.from('aws_credentials').select('id').eq('user_id', user!.id).single(),
+    supabase.from('provider_configs').select('id').eq('user_id', user!.id).single(),
   ])
 
   const hasContacts  = (totalContacts ?? 0) > 0
-  const hasAws       = !!awsCreds
+  const hasSender    = !!awsCreds || !!providerConfig
   const hasDomain    = (domains?.length ?? 0) > 0
   const hasCampaign  = (totalCampaigns ?? 0) > 0
-  const isOperational = hasContacts && hasAws && hasDomain && hasCampaign
+  const isOperational = hasContacts && hasSender && hasDomain && hasCampaign
 
   const limits = await getUserLimits(user!.id)
 
@@ -237,11 +239,11 @@ export default async function DashboardPage() {
           isSubscribed={limits.isSubscribed}
         />
         <OnboardingBanner
-        hasContacts={hasContacts}
-        hasAws={hasAws}
-        hasDomain={hasDomain}
-        hasCampaign={hasCampaign}
-      />
+          hasContacts={hasContacts}
+          hasSender={hasSender}
+          hasDomain={hasDomain}
+          hasCampaign={hasCampaign}
+        />
       </>
     )
   }
