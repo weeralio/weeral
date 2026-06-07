@@ -255,9 +255,17 @@ export default async function DashboardPage() {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
   const since = thirtyDaysAgo.toISOString().split('T')[0]
 
-  const { data: rawLogs } = domainIds.length > 0
-    ? await supabase.from('warmup_logs').select('date, emails_sent, bounces, complaints').in('domain_id', domainIds).gte('date', since).order('date')
-    : { data: [] }
+  const [{ data: rawLogs }, { count: emailsSentTotal }, { count: emailsOpenedTotal }] = await Promise.all([
+    domainIds.length > 0
+      ? supabase.from('warmup_logs').select('date, emails_sent, bounces, complaints').in('domain_id', domainIds).gte('date', since).order('date')
+      : { data: [] },
+    domainIds.length > 0
+      ? supabase.from('emails').select('*', { count: 'exact', head: true }).in('domain_id', domainIds)
+      : { count: 0 },
+    domainIds.length > 0
+      ? supabase.from('emails').select('*', { count: 'exact', head: true }).in('domain_id', domainIds).in('status', ['opened', 'clicked'])
+      : { count: 0 },
+  ])
 
   const logMap = new Map<string, { sent: number; bounces: number; complaints: number }>()
   for (const l of rawLogs ?? []) {
@@ -280,7 +288,7 @@ export default async function DashboardPage() {
   const totalSent30d = volumeData.reduce((s, d) => s + d.sent, 0)
   const avgBounce30d = volumeData.filter(d => d.sent > 0).reduce((s, d, _, a) => s + d.bounce_rate / a.length, 0)
   const activeMailboxes = mailboxes?.filter(m => !['completed', 'suspended', 'waiting'].includes(m.warmup_status ?? '')) ?? []
-  const avgOpenRate = activeMailboxes.length > 0 ? activeMailboxes.reduce((s, m) => s + (m.open_rate ?? 0), 0) / activeMailboxes.length : 0
+  const openRate = (emailsSentTotal ?? 0) > 0 ? ((emailsOpenedTotal ?? 0) / (emailsSentTotal ?? 0)) * 100 : 0
   const emailsSentToday = domains?.reduce((s, d) => s + (d.sent_today ?? 0), 0) ?? 0
 
   type DashAlert = { variant: 'danger' | 'warning' | 'info'; title: string; desc: string; href?: string }
@@ -312,7 +320,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Envoyés (30j)',  value: totalSent30d.toLocaleString(),    sub: `${emailsSentToday} aujourd'hui`,      color: 'text-violet-400' },
-          { label: 'Taux ouverture', value: `${avgOpenRate.toFixed(1)}%`,      sub: `${activeMailboxes.length} boîtes`,   color: 'text-emerald-400' },
+          { label: 'Taux ouverture', value: `${openRate.toFixed(1)}%`, sub: `sur ${(emailsSentTotal ?? 0).toLocaleString()} envois`, color: 'text-emerald-400' },
           { label: 'Contacts',       value: (totalContacts ?? 0).toLocaleString(), sub: `${runningCampaigns ?? 0} campagnes actives`, color: 'text-blue-400' },
           { label: 'Bounce moyen',   value: `${avgBounce30d.toFixed(2)}%`,    sub: avgBounce30d > BOUNCE_RATE_THRESHOLD ? '⚠ Au-dessus du seuil' : 'Dans les normes', color: avgBounce30d > BOUNCE_RATE_THRESHOLD ? 'text-red-400' : 'text-[#475569]' },
         ].map(s => (
