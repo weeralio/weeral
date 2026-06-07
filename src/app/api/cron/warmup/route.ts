@@ -66,12 +66,12 @@ async function processWarmupSend(
   const msg = msgs[mailboxIndex % msgs.length]
   if (!msg) return 0
 
-  // Get already-sent contact IDs for this mailbox
+  // Get all contact IDs already sent to by ANY mailbox in this campaign
+  // (campaign-wide exclusion so multiple mailboxes never hit the same contact)
   const { data: sentRows } = await supabase
     .from('warmup_sends')
     .select('contact_id')
     .eq('warmup_campaign_id', campaign.id)
-    .eq('mailbox_id', job.mailboxId)
 
   const sentIds = (sentRows ?? []).map((r: { contact_id: string }) => r.contact_id)
 
