@@ -190,9 +190,9 @@ export async function triggerSend(campaignId: string): Promise<{ sent?: number; 
           ses_message_id: messageId,
           status: 'sent',
         }),
-        supabase.from('domains').update({ sent_today: domain.sent_today + sent + 1 }).eq('id', domain.id),
-        supabase.rpc('increment_warmup_log', { p_domain_id: domain.id, p_date: today }),
       ])
+      // Non-blocking analytics — must not block or fail the send
+      void supabase.rpc('increment_warmup_log', { p_domain_id: domain.id, p_date: today })
       sent++
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erreur inconnue'
@@ -200,6 +200,13 @@ export async function triggerSend(campaignId: string): Promise<{ sent?: number; 
       revalidatePath(`/dashboard/campagnes/${campaignId}`)
       return { error: `Échec envoi à ${contact.email} : ${msg}` }
     }
+  }
+
+  // Update sent_today once at the end, not per-email
+  if (sent > 0) {
+    await supabase.from('domains')
+      .update({ sent_today: domain.sent_today + sent })
+      .eq('id', domain.id)
   }
 
   revalidatePath(`/dashboard/campagnes/${campaignId}`)

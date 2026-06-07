@@ -26,6 +26,11 @@ export async function POST(request: Request) {
   if (!campaigns?.length) return NextResponse.json({ ok: true, sent: 0 })
 
   let totalSent = 0
+  // Track sends per domain across ALL campaigns in this run
+  const domainSentAdded: Record<string, number> = {}
+  const domainOriginalSentToday: Record<string, number> = {}
+
+  const today = new Date().toISOString().split('T')[0]
 
   for (const campaign of campaigns) {
     const identity = Array.isArray(campaign.sender_identities)
@@ -35,15 +40,23 @@ export async function POST(request: Request) {
 
     if (!domain || domain.status === 'blocked' || domain.status === 'paused') continue
 
-    const remaining = (domain.daily_limit ?? 200) - (domain.sent_today ?? 0)
+    // Record the DB value once per domain (subsequent campaigns reuse it)
+    if (!(domain.id in domainOriginalSentToday)) {
+      domainOriginalSentToday[domain.id] = domain.sent_today ?? 0
+    }
+
+    // Remaining capacity accounts for all sends already done this cron run
+    const alreadySentThisRun = domainSentAdded[domain.id] ?? 0
+    const remaining = (domain.daily_limit ?? 200) - (domainOriginalSentToday[domain.id] ?? 0) - alreadySentThisRun
     if (remaining <= 0) continue
 
-    // Contacts à envoyer pour cette campagne
+    // Contacts à envoyer pour cette campagne (capped to actual remaining)
     const { data: pendingContacts } = await supabase
       .from('campaign_contacts')
-      .select('id, contacts(id, email, first_name, last_name, company)')
+      .select('id, contacts!inner(id, email, first_name, last_name, company, unsubscribed)')
       .eq('campaign_id', campaign.id)
       .eq('status', 'pending')
+      .eq('contacts.unsubscribed', false)
       .limit(remaining)
 
     if (!pendingContacts?.length) {
@@ -52,8 +65,7 @@ export async function POST(request: Request) {
       continue
     }
 
-    const today = new Date().toISOString().split('T')[0]
-    let sentForDomain = 0
+    let sentForCampaign = 0
 
     for (const cc of pendingContacts) {
       const contact = Array.isArray(cc.contacts) ? cc.contacts[0] : cc.contacts
@@ -88,18 +100,26 @@ export async function POST(request: Request) {
         // Analytics — non-blocking
         void supabase.rpc('increment_warmup_log', { p_domain_id: domain.id, p_date: today })
 
-        sentForDomain++
+        sentForCampaign++
         totalSent++
       } catch {
         await supabase.from('campaign_contacts').update({ status: 'failed' }).eq('id', cc.id)
       }
     }
 
-    if (sentForDomain > 0) {
-      await supabase.from('domains')
-        .update({ sent_today: domain.sent_today + sentForDomain })
-        .eq('id', domain.id)
-    }
+    // Accumulate cross-campaign per domain
+    domainSentAdded[domain.id] = alreadySentThisRun + sentForCampaign
+  }
+
+  // Update sent_today once per domain at the end (no overwrite conflicts)
+  if (Object.keys(domainSentAdded).length > 0) {
+    await Promise.all(
+      Object.entries(domainSentAdded).map(([domainId, added]) =>
+        supabase.from('domains')
+          .update({ sent_today: (domainOriginalSentToday[domainId] ?? 0) + added })
+          .eq('id', domainId)
+      )
+    )
   }
 
   return NextResponse.json({ ok: true, sent: totalSent })

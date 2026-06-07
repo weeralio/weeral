@@ -82,7 +82,10 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
     ? active.reduce((min, m) => Math.min(min, m.warmup_day ?? 1), 999)
     : 1
 
-  const statusVariant = domain.status === 'blocked' ? 'blocked' : domain.status === 'active' ? 'success' : 'warmup'
+  const statusVariant =
+    domain.status === 'blocked'    ? 'blocked' :
+    domain.status === 'active'     ? 'success' :
+    domain.status === 'warmed_up'  ? 'success' : 'warmup'
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -98,7 +101,10 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-white">{domain.domain}</h1>
           <Badge variant={statusVariant}>
-            {domain.status === 'blocked' ? 'Bloqué' : domain.status === 'active' ? 'Actif' : 'Warmup actif'}
+            {domain.status === 'blocked'   ? 'Bloqué' :
+             domain.status === 'active'    ? 'Actif' :
+             domain.status === 'warmed_up' ? 'Warmup terminé' :
+             'Warmup actif'}
           </Badge>
         </div>
         {domain.blocked_reason && (
@@ -277,7 +283,7 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
             <CardDescription>Volume agrégé par jour — toutes boîtes confondues</CardDescription>
           </CardHeader>
           <CardContent>
-            <WarmupChart logs={[...warmupLogs].reverse()} dailyLimit={domain.daily_limit} />
+            <WarmupChart logs={[...warmupLogs].reverse()} dailyLimit={domain.daily_limit ?? 0} />
           </CardContent>
         </Card>
       )}
@@ -297,13 +303,12 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Gérer le domaine</CardTitle>
-          <CardDescription>Modifier les paramètres ou supprimer ce domaine.</CardDescription>
+          <CardDescription>Supprimer ce domaine et toutes ses boîtes.</CardDescription>
         </CardHeader>
         <CardContent>
           <DomainManage
             domainId={id}
             domain={domain.domain}
-            dailyLimit={domain.daily_limit ?? 50}
           />
         </CardContent>
       </Card>

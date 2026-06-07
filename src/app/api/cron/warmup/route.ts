@@ -12,6 +12,7 @@ import {
   type MailboxMetrics,
 } from '@/lib/warmup'
 import { sendViaProvider } from '@/lib/mailer'
+import { unsubscribeUrl } from '@/lib/tokens'
 import { NextResponse } from 'next/server'
 
 // ─── Warmup send helpers ──────────────────────────────────────────────────────
@@ -118,18 +119,20 @@ async function processWarmupSend(
     const bodyHtml = interpolateWarmup(msg.body_html, contact)
 
     try {
+      const contactId = row.contact_id ?? contact.id
       await sendViaProvider(job.userId, {
-        from:       job.email,
-        fromName:   job.displayName ?? job.email,
-        to:         contact.email,
+        from:         job.email,
+        fromName:     job.displayName ?? job.email,
+        to:           contact.email,
         subject,
-        htmlBody:   bodyHtml,
+        htmlBody:     bodyHtml,
+        unsubscribeUrl: unsubscribeUrl(contactId, campaign.id),
       })
 
       await supabase.from('warmup_sends').insert({
         warmup_campaign_id: campaign.id,
         mailbox_id:         job.mailboxId,
-        contact_id:         row.contact_id ?? contact.id,
+        contact_id:         contactId,
         user_id:            job.userId,
         warmup_day:         job.warmupDay,
       })
