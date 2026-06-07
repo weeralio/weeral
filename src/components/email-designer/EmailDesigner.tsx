@@ -243,28 +243,17 @@ function TemplateGallery({ onSelect, onClose }: {
   )
 }
 
-// ── DropZone ───────────────────────────────────────────────────────────────────
+// ── Block row in the left list ─────────────────────────────────────────────────
+// Drop indicator: each row detects mouse Y position to decide insert before/after
 
-function DropZone({ active, onDragOver, onDrop }: {
-  active: boolean
+function BlockRow({ block, selected, dragging, dropIndicator, onClick, onDragStart, onDragEnd, onDragOver, onDrop, onDelete }: {
+  block: Block; selected: boolean; dragging: boolean
+  dropIndicator: 'before' | 'after' | null
+  onClick: (e: React.MouseEvent) => void
+  onDragStart: () => void; onDragEnd: () => void
   onDragOver: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent) => void
-}) {
-  return (
-    <div
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      className={`transition-all rounded-full mx-2 ${active ? 'h-3 bg-violet-500 my-1' : 'h-1 hover:bg-[#1e1e3f] my-0.5'}`}
-    />
-  )
-}
-
-// ── Block row in the left list ─────────────────────────────────────────────────
-
-function BlockRow({ block, selected, dragging, onClick, onDragStart, onDragEnd, onDelete }: {
-  block: Block; selected: boolean; dragging: boolean
-  onClick: (e: React.MouseEvent) => void
-  onDragStart: () => void; onDragEnd: () => void; onDelete: () => void
+  onDelete: () => void
 }) {
   const ICONS: Record<BlockType, string> = {
     text: 'T', heading: 'H', button: '⊡', divider: '—', spacer: '↕', image: '⬜',
@@ -275,37 +264,51 @@ function BlockRow({ block, selected, dragging, onClick, onDragStart, onDragEnd, 
   }
 
   return (
-    <div
-      draggable
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      onClick={onClick}
-      className={`group flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-all ${
-        selected ? 'bg-violet-950/30 border border-violet-500/40' : 'border border-transparent hover:bg-[#0f0f20] hover:border-[#1e1e3f]'
-      } ${dragging ? 'opacity-30' : ''}`}
-    >
-      <div className="shrink-0 cursor-grab active:cursor-grabbing text-[#2a2a4a] hover:text-[#3b3b6f]">
-        <svg width="8" height="12" fill="currentColor" viewBox="0 0 8 12">
-          <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
-          <circle cx="2" cy="6" r="1.2"/><circle cx="6" cy="6" r="1.2"/>
-          <circle cx="2" cy="10" r="1.2"/><circle cx="6" cy="10" r="1.2"/>
-        </svg>
-      </div>
-      <div className="w-5 h-5 rounded bg-[#1e1e3f] flex items-center justify-center shrink-0">
-        <span className="text-[9px] font-bold text-[#94a3b8]">{ICONS[block.type]}</span>
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs text-[#94a3b8] truncate">{NAMES[block.type]}</p>
-        {block.type !== 'divider' && block.type !== 'spacer' && block.type !== 'image' && (
-          <p className="text-[10px] text-[#3b3b6f] truncate">{block.content}</p>
-        )}
-      </div>
-      <button
-        onClick={e => { e.stopPropagation(); onDelete() }}
-        className="shrink-0 p-1 rounded text-[#2a2a4a] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+    <div className="relative">
+      {/* Drop indicator — before */}
+      {dropIndicator === 'before' && (
+        <div className="absolute -top-px left-2 right-2 h-0.5 bg-violet-500 rounded-full z-10 pointer-events-none" />
+      )}
+
+      <div
+        draggable
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        onClick={onClick}
+        className={`group flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-all ${
+          selected ? 'bg-violet-950/30 border border-violet-500/40' : 'border border-transparent hover:bg-[#0f0f20] hover:border-[#1e1e3f]'
+        } ${dragging ? 'opacity-30' : ''}`}
       >
-        <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M6 18L18 6M6 6l12 12"/></svg>
-      </button>
+        <div className="shrink-0 cursor-grab active:cursor-grabbing text-[#2a2a4a] hover:text-[#3b3b6f]">
+          <svg width="8" height="12" fill="currentColor" viewBox="0 0 8 12">
+            <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
+            <circle cx="2" cy="6" r="1.2"/><circle cx="6" cy="6" r="1.2"/>
+            <circle cx="2" cy="10" r="1.2"/><circle cx="6" cy="10" r="1.2"/>
+          </svg>
+        </div>
+        <div className="w-5 h-5 rounded bg-[#1e1e3f] flex items-center justify-center shrink-0">
+          <span className="text-[9px] font-bold text-[#94a3b8]">{ICONS[block.type]}</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-[#94a3b8] truncate">{NAMES[block.type]}</p>
+          {block.type !== 'divider' && block.type !== 'spacer' && block.type !== 'image' && (
+            <p className="text-[10px] text-[#3b3b6f] truncate">{block.content}</p>
+          )}
+        </div>
+        <button
+          onClick={e => { e.stopPropagation(); onDelete() }}
+          className="shrink-0 p-1 rounded text-[#2a2a4a] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+        >
+          <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      {/* Drop indicator — after */}
+      {dropIndicator === 'after' && (
+        <div className="absolute -bottom-px left-2 right-2 h-0.5 bg-violet-500 rounded-full z-10 pointer-events-none" />
+      )}
     </div>
   )
 }
@@ -500,7 +503,7 @@ export default function EmailDesigner({ value = '', onChange, disabled }: EmailD
 
   // DnD
   const [dragSrc, setDragSrc] = useState<{ kind: 'palette'; blockType: BlockType } | { kind: 'reorder'; fromIndex: number } | null>(null)
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
 
   // ── Block helpers ────────────────────────────────────────────────────────────
 
@@ -556,15 +559,36 @@ export default function EmailDesigner({ value = '', onChange, disabled }: EmailD
 
   // ── DnD ─────────────────────────────────────────────────────────────────────
 
-  function onDragOver(e: React.DragEvent, index: number) { e.preventDefault(); setDragOverIndex(index) }
-  function onDrop(e: React.DragEvent, index: number) {
+  function handleDragOver(e: React.DragEvent, index: number) {
     e.preventDefault()
-    if (!dragSrc) return
-    if (dragSrc.kind === 'palette') addBlock(dragSrc.blockType, index)
-    else { const to = dragSrc.fromIndex < index ? index - 1 : index; if (to !== dragSrc.fromIndex) moveBlock(dragSrc.fromIndex, to) }
-    setDragSrc(null); setDragOverIndex(null)
+    e.stopPropagation()
+    const rect = e.currentTarget.getBoundingClientRect()
+    const position: 'before' | 'after' = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+    setDragOver({ index, position })
   }
-  function onDragEnd() { setDragSrc(null); setDragOverIndex(null) }
+
+  function handleDrop(e: React.DragEvent, index: number) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!dragSrc) return
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const isTopHalf = e.clientY < rect.top + rect.height / 2
+    const insertAt = isTopHalf ? index : index + 1
+
+    if (dragSrc.kind === 'palette') {
+      addBlock(dragSrc.blockType, insertAt)
+    } else {
+      // Reorder: after removing the dragged item, recalculate insert position
+      const from = dragSrc.fromIndex
+      const to = insertAt > from ? insertAt - 1 : insertAt
+      if (to !== from) moveBlock(from, to)
+    }
+    setDragSrc(null)
+    setDragOver(null)
+  }
+
+  function onDragEnd() { setDragSrc(null); setDragOver(null) }
 
   const selectedBlock = blocks.find(b => b.id === selectedId) ?? null
   const liveHtml = mode === 'blocks' ? blocksToHtml(blocks) : mode === 'html' ? htmlValue : textToHtml(textValue)
@@ -620,36 +644,35 @@ export default function EmailDesigner({ value = '', onChange, disabled }: EmailD
                 <div className="flex-1 overflow-y-auto p-2 min-h-0">
                   {blocks.length === 0 ? (
                     <div
-                      onDragOver={e => onDragOver(e, 0)}
-                      onDrop={e => onDrop(e, 0)}
+                      onDragOver={e => { e.preventDefault(); setDragOver({ index: 0, position: 'before' }) }}
+                      onDrop={e => { e.preventDefault(); if (dragSrc?.kind === 'palette') addBlock(dragSrc.blockType, 0); setDragSrc(null); setDragOver(null) }}
                       className={`flex flex-col items-center justify-center h-full py-8 rounded-xl border-2 border-dashed transition-all text-center ${dragSrc?.kind === 'palette' ? 'border-violet-500/60 bg-violet-950/10' : 'border-[#1e1e3f]'}`}>
-                      <p className="text-xs text-[#3b3b6f] px-4">Glissez un bloc ou cliquez sur &quot;+&quot; ci-dessous</p>
+                      <p className="text-xs text-[#3b3b6f] px-4">Glissez un bloc ou cliquez ci-dessous</p>
                     </div>
                   ) : (
-                    <div className="space-y-0.5">
-                      {blocks.map((block, idx) => (
-                        <div key={block.id}>
-                          <DropZone
-                            active={dragOverIndex === idx && (dragSrc?.kind === 'palette' || (dragSrc?.kind === 'reorder' && dragSrc.fromIndex !== idx))}
-                            onDragOver={e => onDragOver(e, idx)}
-                            onDrop={e => onDrop(e, idx)}
-                          />
+                    <div
+                      className="space-y-0.5"
+                      onDragLeave={() => setDragOver(null)}
+                    >
+                      {blocks.map((block, idx) => {
+                        const isOver = dragOver?.index === idx
+                        const isDraggingThis = dragSrc?.kind === 'reorder' && dragSrc.fromIndex === idx
+                        return (
                           <BlockRow
+                            key={block.id}
                             block={block}
                             selected={selectedId === block.id}
-                            dragging={dragSrc?.kind === 'reorder' && dragSrc.fromIndex === idx}
+                            dragging={isDraggingThis}
+                            dropIndicator={isOver && !isDraggingThis ? dragOver!.position : null}
                             onClick={e => { e.stopPropagation(); setSelectedId(block.id) }}
                             onDragStart={() => setDragSrc({ kind: 'reorder', fromIndex: idx })}
                             onDragEnd={onDragEnd}
+                            onDragOver={e => handleDragOver(e, idx)}
+                            onDrop={e => handleDrop(e, idx)}
                             onDelete={() => deleteBlock(block.id)}
                           />
-                        </div>
-                      ))}
-                      <DropZone
-                        active={dragOverIndex === blocks.length}
-                        onDragOver={e => onDragOver(e, blocks.length)}
-                        onDrop={e => onDrop(e, blocks.length)}
-                      />
+                        )
+                      })}
                     </div>
                   )}
                 </div>
