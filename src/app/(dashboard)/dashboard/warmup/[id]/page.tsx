@@ -8,6 +8,7 @@ import WarmupForecastChart, { type ForecastPoint } from '@/components/charts/war
 import { getDailyVolumeForMailbox } from '@/lib/warmup'
 import type { WarmupPhase } from '../actions'
 import WarmupDayAdjuster from './warmup-day-adjuster'
+import WarmupListsEditor from './warmup-lists-editor'
 
 const PHASE_INFO: Record<WarmupPhase, { label: string; days: string; color: string; noLink?: boolean }> = {
   j4_j8:   { label: 'Échauffement',  days: 'J4–J8',   color: 'text-blue-400',  noLink: true },
@@ -101,8 +102,8 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
 
   const mailboxIdsArr = campaign.mailbox_ids as string[]
 
-  // Load mailboxes + actual sends in parallel
-  const [mailboxesRes, sendsRes] = await Promise.all([
+  // Load mailboxes, actual sends, and contact lists in parallel
+  const [mailboxesRes, sendsRes, listsRes] = await Promise.all([
     mailboxIdsArr.length > 0
       ? supabase
           .from('sender_identities')
@@ -113,9 +114,15 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
       .from('warmup_sends')
       .select('sent_at')
       .eq('warmup_campaign_id', id),
+    supabase
+      .from('contact_lists')
+      .select('id, name, color')
+      .eq('user_id', user!.id)
+      .order('name'),
   ])
 
   const campaignMailboxes = mailboxesRes.data ?? []
+  const allLists = listsRes.data ?? []
 
   // Group actual sends by date
   const actualByDate: Record<string, number> = {}
@@ -253,6 +260,23 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
               })}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* ── Contact lists ──────────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Listes de contacts</CardTitle>
+          <CardDescription>
+            Contacts ciblés par le warmup — modifiable à tout moment, pris en compte dès le prochain envoi
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <WarmupListsEditor
+            campaignId={id}
+            currentListIds={campaign.list_ids as string[] ?? []}
+            allLists={allLists}
+          />
         </CardContent>
       </Card>
 

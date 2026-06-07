@@ -220,6 +220,27 @@ export async function saveWarmupMessage(
   return {}
 }
 
+// ─── Update contact lists ─────────────────────────────────────────────────────
+
+export async function updateWarmupLists(
+  campaignId: string,
+  listIds: string[],
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { error } = await supabase
+    .from('warmup_campaigns')
+    .update({ list_ids: listIds })
+    .eq('id', campaignId)
+    .eq('user_id', user.id)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/dashboard/warmup/${campaignId}`)
+  return {}
+}
+
 // ─── Adjust warmup day manually ──────────────────────────────────────────────
 
 export async function adjustWarmupDay(
