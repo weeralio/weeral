@@ -30,17 +30,24 @@ export default async function UnsubscribePage({
   }
 
   if (!contact.unsubscribed) {
-    await supabase
-      .from('contacts')
-      .update({ unsubscribed: true, unsubscribed_at: new Date().toISOString() })
-      .eq('id', cid)
-
-    await supabase
-      .from('campaign_contacts')
-      .update({ status: 'unsubscribed' })
-      .eq('contact_id', cid)
-      .eq('campaign_id', cmpid)
-      .eq('status', 'pending')
+    await Promise.all([
+      supabase
+        .from('contacts')
+        .update({ unsubscribed: true, unsubscribed_at: new Date().toISOString() })
+        .eq('id', cid),
+      // Cancel ALL pending campaign sends for this contact, not just the current campaign
+      supabase
+        .from('campaign_contacts')
+        .update({ status: 'unsubscribed' })
+        .eq('contact_id', cid)
+        .eq('status', 'pending'),
+      // Cancel active sequence enrollments
+      supabase
+        .from('sequence_enrollments')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('contact_id', cid)
+        .eq('status', 'active'),
+    ])
   }
 
   return (

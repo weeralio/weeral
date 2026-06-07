@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { sendViaProvider } from '@/lib/mailer'
+import { unsubscribeUrl } from '@/lib/tokens'
 import { NextResponse } from 'next/server'
 
 // Appelé toutes les heures par Trigger.dev (même schedule que /api/cron/send)
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     .select(`
       id, sequence_id, contact_id, current_step, sender_identity_id,
       sequences(user_id, name),
-      contacts(email, first_name, last_name, company),
+      contacts(email, first_name, last_name, company, unsubscribed),
       sender_identities(email, display_name, domain_id,
         domains(id, daily_limit, sent_today, status))
     `)
@@ -39,6 +40,13 @@ export async function POST(request: Request) {
     const domain = Array.isArray(identity?.domains) ? identity.domains[0] : identity?.domains
 
     if (!contact?.email || !identity?.email || !sequence?.user_id) continue
+    if (contact.unsubscribed) {
+      await supabase
+        .from('sequence_enrollments')
+        .update({ status: 'completed', completed_at: now })
+        .eq('id', enrollment.id)
+      continue
+    }
     if (!domain || domain.status === 'blocked') continue
 
     // Domain daily limit check — account for sends already done this run
@@ -91,6 +99,7 @@ export async function POST(request: Request) {
         subject,
         htmlBody: html,
         textBody: step.body_text ? interpolate(step.body_text, contact) : undefined,
+        unsubscribeUrl: unsubscribeUrl(enrollment.contact_id, enrollment.sequence_id),
       })
 
       // Get next step to schedule it
