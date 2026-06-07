@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSESClient, initDomainDkim, getDomainTxtRecord, getDomainVerificationStatus, verifyEmailIdentity } from '@/lib/ses'
 import { revalidatePath } from 'next/cache'
 import { getUserPlan, getPlanLimits } from '@/lib/credits'
+import { decrypt } from '@/lib/crypto'
 
 type State = { error: string } | { success: string } | null
 
@@ -326,4 +327,195 @@ export async function verifyContactEmailInSES(contactId: string): Promise<{ erro
   } catch (err: unknown) {
     return { error: err instanceof Error ? err.message : 'Erreur SES' }
   }
+}
+
+// ─── Mailgun inbound — helpers ────────────────────────────────────────────────
+
+type MailgunInboundResult = {
+  error?: string
+  configured?: boolean
+  mxRecords?: string[]
+  region?: 'us' | 'eu'
+  replyDomain?: string
+}
+
+async function getMailgunCredentials(userId: string): Promise<{ apiKey: string; credentials: string; baseUrl: string } | { error: string }> {
+  const supabase = await createClient()
+
+  const { data: config } = await supabase
+    .from('provider_configs')
+    .select('api_key_encrypted')
+    .eq('user_id', userId)
+    .eq('provider', 'mailgun')
+    .single()
+
+  if (!config) return { error: 'Mailgun non configuré pour ce compte' }
+
+  const apiKey = decrypt(config.api_key_encrypted)
+  const credentials = Buffer.from(`api:${apiKey}`).toString('base64')
+
+  // Detect region
+  let baseUrl = 'https://api.mailgun.net'
+  const probe = await fetch(`${baseUrl}/v3/domains?limit=1`, {
+    headers: { Authorization: `Basic ${credentials}` },
+  })
+  if (!probe.ok) {
+    baseUrl = 'https://api.eu.mailgun.net'
+    const probeEu = await fetch(`${baseUrl}/v3/domains?limit=1`, {
+      headers: { Authorization: `Basic ${credentials}` },
+    })
+    if (!probeEu.ok) return { error: 'Clé Mailgun invalide ou inaccessible' }
+  }
+
+  return { apiKey, credentials, baseUrl }
+}
+
+// ─── Mailgun inbound — check status ──────────────────────────────────────────
+
+export async function checkMailgunInbound(domainId: string): Promise<MailgunInboundResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { data: domainRow } = await supabase
+    .from('domains')
+    .select('domain')
+    .eq('id', domainId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!domainRow) return { error: 'Domaine introuvable' }
+
+  const creds = await getMailgunCredentials(user.id)
+  if ('error' in creds) return { error: creds.error }
+
+  const { credentials, baseUrl } = creds
+  const region: 'us' | 'eu' = baseUrl.includes('.eu.') ? 'eu' : 'us'
+  const replyDomain = `reply.${domainRow.domain}`
+
+  const mxRecords = region === 'eu'
+    ? ['mxa.eu.mailgun.org', 'mxb.eu.mailgun.org']
+    : ['mxa.mailgun.org', 'mxb.mailgun.org']
+
+  // Check if the receiving domain exists in Mailgun
+  const domainRes = await fetch(`${baseUrl}/v3/domains/${replyDomain}`, {
+    headers: { Authorization: `Basic ${credentials}` },
+  })
+
+  if (!domainRes.ok) {
+    return { configured: false, mxRecords, region, replyDomain }
+  }
+
+  // Check if a route for this reply domain exists
+  const routesRes = await fetch(`${baseUrl}/v3/routes?limit=100`, {
+    headers: { Authorization: `Basic ${credentials}` },
+  })
+
+  let routeExists = false
+  if (routesRes.ok) {
+    const { items } = await routesRes.json() as { items?: { expression: string }[] }
+    // Mailgun stores backslash-escaped dots in the expression, so check both forms
+    const escapedSearch = replyDomain.replace(/\./g, '\\.')
+    routeExists = (items ?? []).some(r =>
+      r.expression.includes(replyDomain) || r.expression.includes(escapedSearch)
+    )
+  }
+
+  return { configured: routeExists, mxRecords, region, replyDomain }
+}
+
+// ─── Mailgun inbound — setup ──────────────────────────────────────────────────
+
+export async function setupMailgunInbound(domainId: string): Promise<MailgunInboundResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { data: domainRow } = await supabase
+    .from('domains')
+    .select('domain')
+    .eq('id', domainId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!domainRow) return { error: 'Domaine introuvable' }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  if (!appUrl) return { error: 'NEXT_PUBLIC_APP_URL manquant' }
+
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) return { error: 'CRON_SECRET manquant' }
+
+  const creds = await getMailgunCredentials(user.id)
+  if ('error' in creds) return { error: creds.error }
+
+  const { credentials, baseUrl } = creds
+  const region: 'us' | 'eu' = baseUrl.includes('.eu.') ? 'eu' : 'us'
+  const replyDomain = `reply.${domainRow.domain}`
+  const mxRecords = region === 'eu'
+    ? ['mxa.eu.mailgun.org', 'mxb.eu.mailgun.org']
+    : ['mxa.mailgun.org', 'mxb.mailgun.org']
+
+  const authHeaders = {
+    Authorization: `Basic ${credentials}`,
+    'Content-Type': 'application/x-www-form-urlencoded',
+  }
+
+  // Create receiving domain (ignore 409 = already exists)
+  const domainRes = await fetch(`${baseUrl}/v3/domains`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: new URLSearchParams({ name: replyDomain }).toString(),
+  })
+
+  if (!domainRes.ok && domainRes.status !== 409) {
+    const err = await domainRes.text()
+    return { error: `Erreur création domaine Mailgun : ${err}` }
+  }
+
+  const userEmail = user.email
+
+  const webhookUrl = `${appUrl}/api/webhooks/inbound/mailgun?secret=${encodeURIComponent(cronSecret)}`
+  const escapedDomain = replyDomain.replace(/\./g, '\\.')
+  const expression = `match_recipient("r\\+(.*)@${escapedDomain}")`
+
+  // Check if route already exists (Mailgun may store backslash-escaped dots)
+  const routesRes = await fetch(`${baseUrl}/v3/routes?limit=100`, {
+    headers: { Authorization: `Basic ${credentials}` },
+  })
+
+  let existingRouteId: string | null = null
+  if (routesRes.ok) {
+    const { items } = await routesRes.json() as { items?: { id: string; expression: string }[] }
+    const existing = (items ?? []).find(r =>
+      r.expression.includes(replyDomain) || r.expression.includes(escapedDomain)
+    )
+    existingRouteId = existing?.id ?? null
+  }
+
+  const routeBody = new URLSearchParams({
+    priority: '10',
+    description: `Inbound replies — ${replyDomain}`,
+    expression,
+  })
+  routeBody.append('action', `forward("${webhookUrl}")`)
+  if (userEmail) routeBody.append('action', `forward("${userEmail}")`)
+  routeBody.append('action', 'stop()')
+
+  const routeUrl = existingRouteId
+    ? `${baseUrl}/v3/routes/${existingRouteId}`
+    : `${baseUrl}/v3/routes`
+
+  const routeRes = await fetch(routeUrl, {
+    method: existingRouteId ? 'PUT' : 'POST',
+    headers: authHeaders,
+    body: routeBody.toString(),
+  })
+
+  if (!routeRes.ok) {
+    const err = await routeRes.text()
+    return { error: `Erreur création route Mailgun : ${err}` }
+  }
+
+  return { configured: true, mxRecords, region, replyDomain }
 }

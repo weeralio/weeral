@@ -32,6 +32,8 @@ export async function POST(request: Request) {
 
   let totalSent = 0
   const domainSentAdded: Record<string, number> = {}
+  // Cache per-user provider to avoid repeated DB queries
+  const userProviders: Record<string, string | null> = {}
 
   for (const enrollment of dueEnrollments) {
     const sequence = Array.isArray(enrollment.sequences) ? enrollment.sequences[0] : enrollment.sequences
@@ -91,11 +93,28 @@ export async function POST(request: Request) {
     const html = interpolate(step.body_html, contact)
     const subject = interpolate(step.subject, contact)
 
+    // Resolve provider for this user (cached) — only check for Mailgun
+    if (!(sequence.user_id in userProviders)) {
+      const { data: cfg } = await supabase
+        .from('provider_configs')
+        .select('id')
+        .eq('user_id', sequence.user_id)
+        .eq('provider', 'mailgun')
+        .maybeSingle()
+      userProviders[sequence.user_id] = cfg ? 'mailgun' : null
+    }
+
+    const senderDomain = identity.email.split('@')[1]
+    const replyTo = userProviders[sequence.user_id] === 'mailgun'
+      ? `r+${enrollment.id}@reply.${senderDomain}`
+      : undefined
+
     try {
       await sendViaProvider(sequence.user_id, {
         from: identity.email,
         fromName: identity.display_name ?? identity.email,
         to: contact.email,
+        replyTo,
         subject,
         htmlBody: html,
         textBody: step.body_text ? interpolate(step.body_text, contact) : undefined,

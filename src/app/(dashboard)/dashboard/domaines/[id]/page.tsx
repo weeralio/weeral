@@ -6,6 +6,7 @@ import DomainManage from './domain-manage'
 import AddSenderIdentityForm from './add-sender-identity-form'
 import BulkCreateForm from './bulk-create-form'
 import { getUserProvider } from '../actions'
+import MailgunInboundSetup from './mailgun-inbound-setup'
 import WarmupChart from '@/components/charts/warmup-chart'
 import WarmupJourney from '@/components/dashboard/warmup-journey'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -298,6 +299,19 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
           <DomainActions domainId={id} domain={domain.domain} provider={provider} />
         </CardContent>
       </Card>
+
+      {/* ── Recevoir les réponses (Mailgun uniquement) ──────────────────────── */}
+      {provider === 'mailgun' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recevoir les réponses</CardTitle>
+            <CardDescription>Détecte automatiquement quand un prospect répond à ta séquence.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MailgunInboundSetup domainId={id} domain={domain.domain} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Gérer le domaine ────────────────────────────────────────────────── */}
       <Card>
