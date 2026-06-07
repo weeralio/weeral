@@ -53,29 +53,24 @@ export async function POST(request: Request) {
     }
 
     if (ev.event === 'spamreport') {
+      const now = new Date().toISOString()
       await Promise.all([
         supabase.from('emails').update({ status: 'complained' }).eq('id', emailRecord.id),
-        supabase.from('campaign_contacts')
-          .update({ status: 'complained' })
-          .eq('campaign_id', emailRecord.campaign_id)
-          .eq('contact_id', emailRecord.contact_id),
-        supabase.from('contacts')
-          .update({ unsubscribed: true, unsubscribed_at: new Date().toISOString() })
-          .eq('id', emailRecord.contact_id),
+        supabase.from('campaign_contacts').update({ status: 'complained' }).eq('campaign_id', emailRecord.campaign_id).eq('contact_id', emailRecord.contact_id),
+        supabase.from('campaign_contacts').update({ status: 'unsubscribed' }).eq('contact_id', emailRecord.contact_id).eq('status', 'pending'),
+        supabase.from('sequence_enrollments').update({ status: 'completed', completed_at: now }).eq('contact_id', emailRecord.contact_id).eq('status', 'active'),
+        supabase.from('contacts').update({ unsubscribed: true, unsubscribed_at: now }).eq('id', emailRecord.contact_id),
         supabase.rpc('increment_warmup_log_complaints', { p_domain_id: emailRecord.domain_id, p_date: today }),
       ])
       await updateDomainRates(supabase, emailRecord.domain_id, today)
     }
 
     if (ev.event === 'unsubscribe' || ev.event === 'group_unsubscribe') {
+      const now = new Date().toISOString()
       await Promise.all([
-        supabase.from('contacts')
-          .update({ unsubscribed: true, unsubscribed_at: new Date().toISOString() })
-          .eq('id', emailRecord.contact_id),
-        supabase.from('campaign_contacts')
-          .update({ status: 'unsubscribed' })
-          .eq('campaign_id', emailRecord.campaign_id)
-          .eq('contact_id', emailRecord.contact_id),
+        supabase.from('contacts').update({ unsubscribed: true, unsubscribed_at: now }).eq('id', emailRecord.contact_id),
+        supabase.from('campaign_contacts').update({ status: 'unsubscribed' }).eq('contact_id', emailRecord.contact_id).eq('status', 'pending'),
+        supabase.from('sequence_enrollments').update({ status: 'completed', completed_at: now }).eq('contact_id', emailRecord.contact_id).eq('status', 'active'),
       ])
     }
 

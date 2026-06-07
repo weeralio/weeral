@@ -65,10 +65,15 @@ export async function POST(request: Request) {
   }
 
   if (notifType === 'Complaint') {
+    const now = new Date().toISOString()
     await Promise.all([
       supabase.from('emails').update({ status: 'complained' }).eq('id', email.id),
       supabase.from('campaign_contacts').update({ status: 'complained' }).eq('campaign_id', email.campaign_id).eq('contact_id', email.contact_id),
-      supabase.from('contacts').update({ unsubscribed: true, unsubscribed_at: new Date().toISOString() }).eq('id', email.contact_id),
+      // Cancel all other pending sends for this contact across all campaigns
+      supabase.from('campaign_contacts').update({ status: 'unsubscribed' }).eq('contact_id', email.contact_id).eq('status', 'pending'),
+      // Cancel active sequence enrollments
+      supabase.from('sequence_enrollments').update({ status: 'completed', completed_at: now }).eq('contact_id', email.contact_id).eq('status', 'active'),
+      supabase.from('contacts').update({ unsubscribed: true, unsubscribed_at: now }).eq('id', email.contact_id),
       supabase.rpc('increment_warmup_log_complaints', { p_domain_id: email.domain_id, p_date: today }),
     ])
 
