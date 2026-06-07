@@ -140,7 +140,7 @@ async function processWarmupSend(
     }
   }
 
-  // Update sent_today counter
+  // sent_today was reset to 0 in step E before sends run, so absolute assignment is correct
   if (sent > 0) {
     await supabase
       .from('sender_identities')
@@ -531,17 +531,25 @@ export async function POST(request: Request) {
   }
 
   // ── 8. Execute warmup email sends ─────────────────────────────────────────
+  const sentPerMailbox: Record<string, number> = {}
   for (const job of sendJobs) {
     const sent = await processWarmupSend(supabase, job)
     stats.emailsSent += sent
+    sentPerMailbox[job.mailboxId] = sent
   }
 
-  // Update actual_volume on events
+  // Update actual_volume and status on events
   if (sendJobs.length > 0) {
     for (const job of sendJobs) {
+      const actualSent = sentPerMailbox[job.mailboxId] ?? 0
       await supabase
         .from('warmup_mailbox_events')
-        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .update({
+          actual_volume: actualSent,
+          status: actualSent > 0 ? 'completed' : 'skipped',
+          skip_reason: actualSent === 0 ? 'no_contacts' : null,
+          completed_at: new Date().toISOString(),
+        })
         .eq('mailbox_id', job.mailboxId)
         .eq('date', today)
         .eq('status', 'pending')

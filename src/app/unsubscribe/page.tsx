@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { verifyUnsubscribeToken } from '@/lib/tokens'
 
 export default async function UnsubscribePage({
@@ -17,7 +17,7 @@ export default async function UnsubscribePage({
     return <UnsubscribePage.Error message="Lien invalide ou expiré." />
   }
 
-  const supabase = await createClient()
+  const supabase = createServiceClient()
 
   const { data: contact } = await supabase
     .from('contacts')
