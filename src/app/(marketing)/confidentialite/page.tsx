@@ -1,7 +1,10 @@
 import type { Metadata } from 'next'
 import { FadeUp } from '@/components/ui/motion'
 
-export const metadata: Metadata = { title: 'Politique de confidentialité — Weeral' }
+export const metadata: Metadata = {
+  title: 'Politique de confidentialité — Weeral',
+  alternates: { canonical: 'https://weeral.io/confidentialite' },
+}
 
 const sections = [
   {

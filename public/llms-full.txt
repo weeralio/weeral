@@ -1,0 +1,221 @@
+# Weeral — Contenu complet
+
+> Ce fichier contient le contenu intégral de toutes les pages publiques de weeral.io, destiné aux systèmes d'IA pour une indexation approfondie.
+
+---
+
+# Page d'accueil — https://weeral.io/
+
+## Proposition principale
+
+Weeral est un outil de cold email B2B automatisé de A à Z.
+
+Connecte ton expéditeur email (Brevo, Mailgun, SendGrid ou AWS SES), importe tes contacts et lance des campagnes de prospection avec warmup automatique — réputation isolée, délivrabilité maximale, contrôle total.
+
+Offre de bienvenue : 100 emails offerts, aucune carte requise, setup en 5 minutes.
+
+## Expéditeurs supportés
+
+Brevo · Mailgun · SendGrid · AWS SES
+
+## Comment ça marche — 4 étapes
+
+1. **Crée un compte** — Inscription gratuite en 30 secondes. 100 emails offerts pour tester, sans carte bancaire.
+2. **Connecte ton expéditeur** — Choisis entre Brevo (5 min), Mailgun, SendGrid ou AWS SES. Colle ta clé API, c'est tout.
+3. **Ajoute tes contacts** — Importe un CSV ou ajoute manuellement. Crée des listes, segmente, personnalise.
+4. **Lance ta campagne** — Écris ton email avec l'IA, configure le warmup, et envoie. Les stats arrivent en temps réel.
+
+## Fonctionnalités
+
+### Ton expéditeur, ton choix
+Brevo, Mailgun, SendGrid ou AWS SES. Connecte en 5 min avec ta clé API. Chaque utilisateur a son infrastructure isolée.
+
+### Warmup automatique
+Montée en charge progressive sur 14 jours. Volume augmente chaque jour selon un schedule calibré pour maximiser la réputation d'envoi.
+
+### Rédaction IA
+L'IA génère ton email de prospection selon ta cible et ton secteur. Objet, intro, CTA — en quelques secondes.
+
+### Gestion des contacts
+Import CSV en un clic, listes segmentées, variables de personnalisation {{prénom}} {{entreprise}} dans chaque email.
+
+### Analytics en temps réel
+Taux d'ouverture, de clics, de réponses, de bounces. Pause automatique si les seuils critiques sont dépassés.
+
+### Conformité RGPD
+Lien de désinscription signé ajouté automatiquement. Gestion des optouts immédiate. Clés chiffrées AES-256.
+
+## Tarifs (résumé)
+
+- **Starter** : 147€/mois (ou 88€/mois en annuel) — 3 domaines, 5 boîtes mail, 3 campagnes actives
+- **Growth** : 197€/mois (ou 118€/mois en annuel) — 10 domaines, 20 boîtes mail, campagnes illimitées *(le plus populaire)*
+- **Agency** : 347€/mois (ou 208€/mois en annuel) — domaines illimités, boîtes illimitées, white label
+
+Économie de 40% avec le plan annuel.
+
+## FAQ — Page d'accueil
+
+**Quel expéditeur choisir ?**
+Pour débuter, Brevo est le plus simple (compte gratuit, clé API en 5 minutes, 300 emails/jour offerts). Pour des volumes plus importants, Mailgun ou SendGrid. AWS SES est le moins cher à gros volume mais plus complexe à configurer.
+
+**Est-ce que je paie par email envoyé ?**
+Non. Tu paies un abonnement Weeral fixe (147€, 197€ ou 347€/mois) + les frais de ton expéditeur directement sur ton compte (ex : Brevo gratuit jusqu'à 9k emails/mois, AWS SES ~$0.10/1 000 emails). Aucun frais caché.
+
+**Le warmup est-il vraiment automatique ?**
+Oui. Chaque jour, Weeral calcule le volume autorisé selon le jour de warmup du domaine et envoie automatiquement. Tu n'as rien à configurer une fois le domaine ajouté.
+
+**Mes données et clés API sont-elles sécurisées ?**
+Toutes les clés API sont chiffrées AES-256-GCM avant stockage en base. La clé de chiffrement est en variable d'environnement serveur — même notre équipe ne peut pas les lire en clair.
+
+**Puis-je tester avant de payer ?**
+Oui. 100 contacts et 100 emails sont offerts gratuitement à l'inscription, sans carte bancaire. Suffisant pour valider que Weeral correspond à ton usage.
+
+---
+
+# Page Tarifs — https://weeral.io/pricing/
+
+## Plan Starter — 147€/mois · 88€/mois en annuel (1 056€/an)
+
+Cible : Pour lancer sa prospection.
+
+Inclus :
+- 3 domaines
+- 5 boîtes mail
+- 3 campagnes actives
+- Warmup automatique
+- Import CSV
+- Lien désinscription automatique (HMAC)
+- Support email
+
+Non inclus : IA complète, campagnes illimitées, white label.
+
+## Plan Growth — 197€/mois · 118€/mois en annuel (1 416€/an) ★ Le plus populaire
+
+Cible : Pour les équipes sales qui scalent.
+
+Inclus :
+- 10 domaines
+- 20 boîtes mail
+- Campagnes illimitées
+- Warmup automatique
+- IA complète (génération + analyse)
+- Séquences multi-étapes
+- Répondeurs automatiques
+- Monitoring avancé
+- Alertes automatiques
+- Support prioritaire
+
+Non inclus : White label.
+
+## Plan Agency — 347€/mois · 208€/mois en annuel (2 496€/an)
+
+Cible : Pour les agences et revendeurs.
+
+Inclus :
+- Domaines illimités
+- Boîtes mail illimitées
+- Campagnes illimitées
+- Warmup automatique
+- IA complète (génération + analyse)
+- Séquences multi-étapes
+- Répondeurs automatiques
+- White label (interface à votre marque)
+- Monitoring avancé
+- Alertes automatiques
+- Support dédié
+
+## Comparaison complète
+
+| Fonctionnalité       | Starter | Growth      | Agency      |
+|----------------------|---------|-------------|-------------|
+| Domaines             | 3       | 10          | Illimités   |
+| Boîtes mail          | 5       | 20          | Illimitées  |
+| Campagnes actives    | 3       | Illimitées  | Illimitées  |
+| Warmup automatique   | ✓       | ✓           | ✓           |
+| Import CSV           | ✓       | ✓           | ✓           |
+| Désinscription HMAC  | ✓       | ✓           | ✓           |
+| IA complète          | —       | ✓           | ✓           |
+| Séquences            | —       | ✓           | ✓           |
+| Répondeurs auto      | —       | ✓           | ✓           |
+| Monitoring avancé    | —       | ✓           | ✓           |
+| White label          | —       | —           | ✓           |
+| Support              | Email   | Prioritaire | Dédié       |
+
+## Note sur les frais AWS SES
+
+AWS SES facture $0.10 pour 1 000 emails. Pour 10 000 emails/mois : $1. Pour 100 000 : $10. Ces frais sont facturés directement par AWS sur le compte de l'utilisateur, pas par Weeral. Free tier AWS : 62 000 emails/mois depuis une instance EC2.
+
+## FAQ — Page Tarifs
+
+**Y a-t-il un essai gratuit ?**
+Tu peux créer un compte et configurer ton infrastructure. L'abonnement est requis pour lancer des campagnes réelles.
+
+**Puis-je changer de plan ?**
+Oui, upgrade ou downgrade à tout moment. Le changement prend effet immédiatement, au prorata.
+
+**Y a-t-il un engagement ?**
+Non. Mensuel sans engagement. En annuel, tu es facturé pour 12 mois mais économises 40%.
+
+**Mes credentials AWS sont sécurisés ?**
+Chiffrés AES-256-GCM avant stockage. La clé est en variable d'environnement serveur — même Weeral ne peut pas les lire en clair.
+
+**Qu'est-ce que le White label ?**
+Le plan Agency permet de déployer Weeral sous ta propre marque pour tes clients — logo, couleurs, domaine personnalisé.
+
+**Qu'est-ce que l'IA complète ?**
+Génération de séquences complètes (Claude Opus), analyse et scoring du contenu (Claude Sonnet), campagnes IA guidées avec brief par phase.
+
+---
+
+# Page À propos — https://weeral.io/a-propos/
+
+## Origine
+
+Weeral est né d'un constat simple : la plupart des outils de cold email mutualisent leur infrastructure d'envoi. Résultat — un mauvais expéditeur dans le pool plombe la réputation de tout le monde.
+
+## Pourquoi BYOA (Bring Your Own Account) ?
+
+Le modèle BYOA permet à chaque utilisateur d'utiliser son propre compte d'expéditeur (Brevo, Mailgun, SendGrid ou AWS SES). Les emails partent de l'infrastructure de l'utilisateur, avec sa propre réputation. L'utilisateur est le seul responsable de sa délivrabilité — et en bénéficie pleinement.
+
+AWS SES est l'un des services d'envoi les plus fiables au monde. En le connectant directement à Weeral, les utilisateurs obtiennent une délivrabilité professionnelle à un coût marginal.
+
+## Ce que Weeral fait
+
+- Warmup automatique
+- Monitoring bounces & plaintes
+- Gestion des campagnes
+- Import contacts CSV
+- Lien désinscription RGPD
+- Crons d'envoi automatique
+- Rédaction IA (objet, corps, CTA)
+- Séquences multi-étapes
+- Analytics temps réel
+
+## Ce que Weeral ne fait pas
+
+- Partager ton infrastructure d'envoi
+- Stocker tes clés en clair
+- Toucher à tes données d'envoi
+- Facturer à l'email
+- Vendre tes données
+
+## Sécurité
+
+Les credentials IAM AWS sont chiffrés avec AES-256-GCM avant stockage. La clé de chiffrement est en variable d'environnement serveur — jamais en base de données. En cas de fuite de la base de données, les credentials restent inutilisables.
+
+## Contact
+
+Email : hello@weeral.co
+
+---
+
+# Informations générales
+
+**Nom** : Weeral
+**URL** : https://weeral.io
+**Contact** : hello@weeral.co
+**Langue** : Français (marché principal France/francophonie)
+**Catégorie** : SaaS B2B, outreach commercial, email marketing
+**Stack** : Next.js 15, Supabase, Vercel, Trigger.dev
+**Expéditeurs supportés** : Brevo, Mailgun, SendGrid, AWS SES
+**Modèle** : BYOA (Bring Your Own Account) — abonnement fixe + frais expéditeur directs

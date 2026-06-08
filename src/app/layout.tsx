@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { JsonLd } from "@/components/seo/json-ld";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -49,24 +50,18 @@ export const metadata: Metadata = {
     title: "Weeral — Cold email B2B automatisé",
     description:
       "Automatise tes campagnes de prospection B2B avec warmup automatique, rédaction IA et analytics en temps réel.",
-    images: [
-      {
-        url: "/og.png",
-        width: 1200,
-        height: 630,
-        alt: "Weeral — Cold email B2B automatisé",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Weeral — Cold email B2B automatisé",
     description:
       "Automatise tes campagnes de prospection B2B avec warmup automatique et rédaction IA.",
-    images: ["/og.png"],
   },
   alternates: {
     canonical: "https://weeral.io",
+  },
+  other: {
+    "llms-txt": "https://weeral.io/llms.txt",
   },
 };
 
@@ -80,7 +75,35 @@ export default function RootLayout({
       lang="fr"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <JsonLd data={{
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: 'Weeral',
+          url: 'https://weeral.io',
+          description: 'SaaS de cold email B2B avec warmup automatique, rédaction IA et BYOA (Brevo, Mailgun, SendGrid, AWS SES).',
+          potentialAction: {
+            '@type': 'SearchAction',
+            target: 'https://weeral.io/?q={search_term_string}',
+            'query-input': 'required name=search_term_string',
+          },
+        }} />
+        <JsonLd data={{
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: 'Weeral',
+          url: 'https://weeral.io',
+          logo: 'https://weeral.io/opengraph-image',
+          contactPoint: {
+            '@type': 'ContactPoint',
+            email: 'hello@weeral.co',
+            contactType: 'customer support',
+            availableLanguage: 'French',
+          },
+          sameAs: [],
+        }} />
+        {children}
+      </body>
     </html>
   );
 }

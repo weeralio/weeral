@@ -1,7 +1,11 @@
 import type { Metadata } from 'next'
 import { FadeUp } from '@/components/ui/motion'
 
-export const metadata: Metadata = { title: 'Mentions légales — Weeral' }
+export const metadata: Metadata = {
+  title: 'Mentions légales — Weeral',
+  robots: { index: false, follow: false },
+  alternates: { canonical: 'https://weeral.io/mentions-legales' },
+}
 
 export default function MentionsLegalesPage() {
   return (

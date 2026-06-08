@@ -1,14 +1,49 @@
 import type { Metadata } from 'next'
 import { FadeUp, FadeIn } from '@/components/ui/motion'
+import { JsonLd } from '@/components/seo/json-ld'
 
 export const metadata: Metadata = {
   title: 'À propos — Weeral',
-  description: 'L\'histoire derrière Weeral et pourquoi on a construit un outil de cold email B2B BYOA.',
+  description: 'Weeral est né d\'un constat : la plupart des outils de cold email mutualisent leur infrastructure. Avec BYOA, chaque utilisateur conserve sa propre réputation d\'envoi.',
+  alternates: {
+    canonical: 'https://weeral.io/a-propos',
+  },
+  openGraph: {
+    url: 'https://weeral.io/a-propos',
+    title: 'À propos — Weeral',
+    description: 'Le modèle BYOA : connecte ton propre Brevo, Mailgun, SendGrid ou AWS SES. Ta réputation, ton contrôle.',
+  },
 }
 
 export default function AProposPage() {
   return (
     <div className="bg-[#07070f] min-h-screen">
+      <JsonLd data={{
+        '@context': 'https://schema.org',
+        '@type': 'AboutPage',
+        url: 'https://weeral.io/a-propos',
+        name: 'À propos de Weeral',
+        description: 'Weeral est un SaaS de cold email B2B BYOA. Les utilisateurs connectent leur propre infrastructure d\'envoi (Brevo, Mailgun, SendGrid, AWS SES) pour une délivrabilité optimale et une réputation isolée.',
+        mainEntity: {
+          '@type': 'Organization',
+          name: 'Weeral',
+          url: 'https://weeral.io',
+          email: 'hello@weeral.co',
+          description: 'SaaS de cold email B2B avec warmup automatique, rédaction IA et modèle BYOA.',
+          foundingDate: '2024',
+          areaServed: 'FR',
+          knowsAbout: [
+            'Cold email B2B',
+            'Email warmup',
+            'Email deliverability',
+            'Prospection commerciale',
+            'AWS SES',
+            'Mailgun',
+            'SendGrid',
+            'Brevo',
+          ],
+        },
+      }} />
       <section className="relative py-28 overflow-hidden">
         <div className="orb orb-purple w-[500px] h-[500px] -top-20 -right-20 opacity-20" />
         <div className="max-w-3xl mx-auto px-6 relative z-10">

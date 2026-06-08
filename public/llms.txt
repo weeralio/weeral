@@ -1,0 +1,19 @@
+# Weeral
+
+> SaaS de cold email B2B avec le modèle BYOA (Bring Your Own Account). Les utilisateurs connectent leur propre compte Brevo, Mailgun, SendGrid ou AWS SES et gèrent leurs campagnes de prospection depuis une interface unifiée, avec warmup automatique, rédaction IA et analytics en temps réel.
+
+## Pages principales
+
+- [Accueil](https://weeral.io/): Présentation complète de Weeral — fonctionnalités, warmup automatique, tarification, FAQ.
+- [Tarifs](https://weeral.io/pricing): Plans Starter (147€/mois), Growth (197€/mois), Agency (347€/mois). −40% en annuel. Comparaison complète des fonctionnalités.
+- [À propos](https://weeral.io/a-propos): Philosophie BYOA, sécurité des credentials, ce que Weeral fait et ne fait pas.
+
+## Légal
+
+- [Mentions légales](https://weeral.io/mentions-legales): Informations légales de l'éditeur.
+- [Politique de confidentialité](https://weeral.io/confidentialite): Données collectées, hébergement, droits RGPD.
+- [CGV](https://weeral.io/cgv): Conditions générales de vente, abonnements, résiliation.
+
+## Données structurées complètes
+
+- [Contenu complet](https://weeral.io/llms-full.txt): Toutes les pages en texte intégral pour indexation approfondie.

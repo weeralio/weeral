@@ -1,9 +1,47 @@
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import MarketingNav from '@/components/marketing/nav'
 import MarketingFooter from '@/components/marketing/footer'
 import { FadeUp, FadeIn, Stagger, StaggerItem, ScaleIn } from '@/components/ui/motion'
+import { JsonLd } from '@/components/seo/json-ld'
+
+export const metadata: Metadata = {
+  title: 'Weeral — Cold email B2B automatisé | Warmup + IA + BYOA',
+  description: 'Automatise tes campagnes de cold email B2B. Warmup progressif sur 14 jours, rédaction IA, séquences multi-étapes. Connecte Brevo, Mailgun, SendGrid ou AWS SES en 5 minutes. 100 emails offerts.',
+  alternates: {
+    canonical: 'https://weeral.io',
+  },
+  openGraph: {
+    url: 'https://weeral.io',
+    title: 'Weeral — Cold email B2B automatisé',
+    description: 'Warmup automatique, rédaction IA, BYOA (Brevo, Mailgun, SendGrid, AWS SES). 100 emails offerts, sans carte bancaire.',
+  },
+}
+
+const FAQ_ITEMS = [
+  {
+    q: 'Quel expéditeur choisir ?',
+    a: "Pour débuter, Brevo est le plus simple (compte gratuit, clé API en 5 minutes, 300 emails/jour offerts). Pour des volumes plus importants, Mailgun ou SendGrid. AWS SES est le moins cher à gros volume mais plus complexe à configurer.",
+  },
+  {
+    q: 'Est-ce que je paie par email envoyé ?',
+    a: "Non. Tu paies un abonnement Weeral fixe (147€, 197€ ou 347€/mois) + les frais de ton expéditeur directement sur ton compte (ex: Brevo gratuit jusqu'à 9k emails/mois, AWS SES ~$0.10/1 000 emails). Aucun frais caché.",
+  },
+  {
+    q: 'Le warmup est-il vraiment automatique ?',
+    a: "Oui. Chaque jour, Weeral calcule le volume autorisé selon le jour de warmup du domaine et envoie automatiquement. Tu n'as rien à configurer une fois le domaine ajouté.",
+  },
+  {
+    q: 'Mes données et clés API sont-elles sécurisées ?',
+    a: "Toutes les clés API sont chiffrées AES-256-GCM avant stockage en base. La clé de chiffrement est en variable d'environnement serveur — même notre équipe ne peut pas les lire en clair.",
+  },
+  {
+    q: 'Puis-je tester avant de payer ?',
+    a: "Oui. 100 contacts et 100 emails sont offerts gratuitement à l'inscription, sans carte bancaire. Suffisant pour valider que Weeral correspond à ton usage.",
+  },
+]
 
 export default async function Home() {
   const supabase = await createClient()
@@ -12,6 +50,37 @@ export default async function Home() {
 
   return (
     <>
+      <JsonLd data={{
+        '@context': 'https://schema.org',
+        '@type': 'SoftwareApplication',
+        name: 'Weeral',
+        url: 'https://weeral.io',
+        applicationCategory: 'BusinessApplication',
+        operatingSystem: 'Web',
+        description: 'SaaS de cold email B2B avec warmup automatique, rédaction IA et modèle BYOA. Connecte Brevo, Mailgun, SendGrid ou AWS SES.',
+        offers: [
+          { '@type': 'Offer', name: 'Starter', price: '147', priceCurrency: 'EUR', billingDuration: 'P1M' },
+          { '@type': 'Offer', name: 'Growth', price: '197', priceCurrency: 'EUR', billingDuration: 'P1M' },
+          { '@type': 'Offer', name: 'Agency', price: '347', priceCurrency: 'EUR', billingDuration: 'P1M' },
+        ],
+        featureList: [
+          'Warmup email automatique',
+          'Séquences multi-étapes',
+          'Rédaction IA',
+          'Analytics temps réel',
+          'Conformité RGPD',
+          'Support Brevo, Mailgun, SendGrid, AWS SES',
+        ],
+      }} />
+      <JsonLd data={{
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: FAQ_ITEMS.map(({ q, a }) => ({
+          '@type': 'Question',
+          name: q,
+          acceptedAnswer: { '@type': 'Answer', text: a },
+        })),
+      }} />
       <MarketingNav />
       <main className="overflow-hidden">
 
@@ -338,28 +407,7 @@ export default async function Home() {
             </FadeUp>
 
             <Stagger className="space-y-4" staggerDelay={0.07}>
-              {[
-                {
-                  q: 'Quel expéditeur choisir ?',
-                  a: 'Pour débuter, Brevo est le plus simple (compte gratuit, clé API en 5 minutes, 300 emails/jour offerts). Pour des volumes plus importants, Mailgun ou SendGrid. AWS SES est le moins cher à gros volume mais plus complexe à configurer.',
-                },
-                {
-                  q: 'Est-ce que je paie par email envoyé ?',
-                  a: 'Non. Tu paies un abonnement Weeral fixe (147€, 197€ ou 347€/mois) + les frais de ton expéditeur directement sur ton compte (ex: Brevo gratuit jusqu\'à 9k emails/mois, AWS SES ~$0.10/1 000 emails). Aucun frais caché.',
-                },
-                {
-                  q: 'Le warmup est-il vraiment automatique ?',
-                  a: 'Oui. Chaque jour, Weeral calcule le volume autorisé selon le jour de warmup du domaine et envoie automatiquement. Tu n\'as rien à configurer une fois le domaine ajouté.',
-                },
-                {
-                  q: 'Mes données et clés API sont-elles sécurisées ?',
-                  a: 'Toutes les clés API sont chiffrées AES-256-GCM avant stockage en base. La clé de chiffrement est en variable d\'environnement serveur — même notre équipe ne peut pas les lire en clair.',
-                },
-                {
-                  q: 'Puis-je tester avant de payer ?',
-                  a: 'Oui. 100 contacts et 100 emails sont offerts gratuitement à l\'inscription, sans carte bancaire. Sufficient pour valider que Weeral correspond à ton usage.',
-                },
-              ].map((faq) => (
+              {FAQ_ITEMS.map((faq) => (
                 <StaggerItem key={faq.q}>
                   <div className="card-dark p-6 group cursor-default">
                     <p className="font-medium text-white mb-2.5 group-hover:text-[#a78bfa] transition-colors">{faq.q}</p>
