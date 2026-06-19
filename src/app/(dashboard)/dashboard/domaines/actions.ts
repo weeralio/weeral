@@ -283,6 +283,13 @@ export async function deleteSenderIdentity(identityId: string, domainId: string)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
 
+  // NULL-out FK references that have no ON DELETE clause (would block the delete)
+  await Promise.all([
+    supabase.from('sequence_enrollments').update({ sender_identity_id: null }).eq('sender_identity_id', identityId),
+    supabase.from('auto_responders').update({ sender_identity_id: null }).eq('sender_identity_id', identityId),
+    supabase.from('ia_campaigns').update({ mailbox_id: null }).eq('mailbox_id', identityId),
+  ])
+
   const { error } = await supabase
     .from('sender_identities')
     .delete()

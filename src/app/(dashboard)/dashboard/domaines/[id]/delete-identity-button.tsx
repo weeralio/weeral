@@ -14,13 +14,33 @@ export default function DeleteIdentityButton({
 }) {
   const [confirm, setConfirm] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+
+  function handleDelete() {
+    setError(null)
+    startTransition(async () => {
+      const result = await deleteSenderIdentity(identityId, domainId)
+      if (result?.error) {
+        setError(result.error)
+        setConfirm(false)
+      }
+    })
+  }
+
+  if (error) {
+    return (
+      <span className="text-xs text-red-400 shrink-0">
+        Erreur · <button onClick={() => setError(null)} className="underline">Réessayer</button>
+      </span>
+    )
+  }
 
   if (confirm) {
     return (
       <div className="flex items-center gap-2 shrink-0">
         <span className="text-xs text-[#94a3b8]">Supprimer ?</span>
         <button
-          onClick={() => startTransition(async () => { await deleteSenderIdentity(identityId, domainId) })}
+          onClick={handleDelete}
           disabled={isPending}
           className="text-xs font-medium text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
         >
@@ -28,6 +48,7 @@ export default function DeleteIdentityButton({
         </button>
         <button
           onClick={() => setConfirm(false)}
+          disabled={isPending}
           className="text-xs text-[#475569] hover:text-[#94a3b8] transition-colors"
         >
           Non
