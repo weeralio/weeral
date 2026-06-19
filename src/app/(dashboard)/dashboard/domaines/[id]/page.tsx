@@ -7,6 +7,7 @@ import AddSenderIdentityForm from './add-sender-identity-form'
 import BulkCreateForm from './bulk-create-form'
 import { getUserProvider } from '../actions'
 import MailgunInboundSetup from './mailgun-inbound-setup'
+import DeleteIdentityButton from './delete-identity-button'
 import WarmupChart from '@/components/charts/warmup-chart'
 import WarmupJourney from '@/components/dashboard/warmup-journey'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -206,6 +207,7 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
                           {phase.emoji} {phase.name}
                         </span>
                       )}
+                      <DeleteIdentityButton identityId={mb.id} domainId={id} email={mb.email} />
                     </div>
 
                     {/* Metrics + progress */}

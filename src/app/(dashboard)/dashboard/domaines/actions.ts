@@ -278,6 +278,22 @@ export async function addSenderIdentitiesBulk(
 
 // ─── AWS SES: verify sender email ────────────────────────────────────────────
 
+export async function deleteSenderIdentity(identityId: string, domainId: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { error } = await supabase
+    .from('sender_identities')
+    .delete()
+    .eq('id', identityId)
+    .eq('user_id', user.id)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/dashboard/domaines/${domainId}`)
+  return {}
+}
+
 export async function verifySenderEmail(identityId: string, domainId: string): Promise<{ error?: string; success?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
