@@ -91,7 +91,7 @@ export default async function WarmupPage() {
                         </div>
 
                         <p className="text-sm text-[#475569] mb-3">
-                          {domain?.domain}
+                          {domain?.domain ?? 'Multi-domaines'}
                           {c.cta_objective && (
                             <span className="text-[#3b3b6f]"> · {c.cta_objective}</span>
                           )}

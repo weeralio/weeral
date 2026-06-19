@@ -78,14 +78,15 @@ export async function createWarmupCampaign(formData: FormData): Promise<{ error?
   if (!user) return { error: 'Non authentifié' }
 
   const name        = formData.get('name') as string
-  const domainId    = formData.get('domain_id') as string
+  const domainIdRaw = formData.get('domain_id') as string
+  const domainId    = domainIdRaw || null
   const objective   = formData.get('cta_objective') as string
   const ctaUrl      = (formData.get('cta_url') as string | null) || null
   const listIds: string[]   = JSON.parse((formData.get('list_ids') as string) || '[]')
   const mailboxIds: string[] = JSON.parse((formData.get('mailbox_ids') as string) || '[]')
 
-  if (!name || !domainId || mailboxIds.length === 0) {
-    return { error: 'Nom, domaine et au moins une boîte mail sont requis' }
+  if (!name || mailboxIds.length === 0) {
+    return { error: 'Nom et au moins une boîte mail sont requis' }
   }
 
   const { data: campaign, error } = await supabase

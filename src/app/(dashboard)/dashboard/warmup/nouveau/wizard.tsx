@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import { createWarmupCampaign } from '../actions'
 import { Card, CardContent } from '@/components/ui/card'
 import ListPicker, { type ContactList } from '@/components/dashboard/list-picker'
@@ -15,29 +15,54 @@ interface Props {
   totalCount: number
 }
 
-const STEPS = ['Infos', 'Domaine & Boîtes', 'Audience']
+const STEPS = ['Infos', 'Boîtes mail', 'Audience']
 
 export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: Props) {
-  const [step, setStep]             = useState(1)
-  const [name, setName]             = useState('')
-  const [objective, setObjective]   = useState('')
-  const [ctaUrl, setCtaUrl]         = useState('')
-  const [domainId, setDomainId]     = useState(domains[0]?.id ?? '')
-  const [mailboxIds, setMailboxIds] = useState<string[]>([])
-  const [listIds, setListIds]       = useState<string[]>([])
-  const [error, setError]           = useState('')
+  const [step, setStep]              = useState(1)
+  const [name, setName]              = useState('')
+  const [objective, setObjective]    = useState('')
+  const [ctaUrl, setCtaUrl]          = useState('')
+  const [mailboxIds, setMailboxIds]  = useState<string[]>([])
+  const [listIds, setListIds]        = useState<string[]>([])
+  const [error, setError]            = useState('')
   const [isPending, startTransition] = useTransition()
 
-  const domainMailboxes = mailboxes.filter(m => m.domain_id === domainId)
+  // Group mailboxes by domain for display
+  const mailboxesByDomain = useMemo(() => {
+    const map = new Map<string, { domain: Domain; mailboxes: Mailbox[] }>()
+    for (const d of domains) {
+      const dMailboxes = mailboxes.filter(m => m.domain_id === d.id)
+      if (dMailboxes.length > 0) map.set(d.id, { domain: d, mailboxes: dMailboxes })
+    }
+    return map
+  }, [domains, mailboxes])
 
   function toggleMailbox(id: string) {
     setMailboxIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
-  function toggleAllMailboxes() {
-    const all = domainMailboxes.map(m => m.id)
+  function toggleDomain(domainId: string) {
+    const dMailboxes = mailboxesByDomain.get(domainId)?.mailboxes ?? []
+    const allSelected = dMailboxes.every(m => mailboxIds.includes(m.id))
+    if (allSelected) {
+      setMailboxIds(prev => prev.filter(id => !dMailboxes.map(m => m.id).includes(id)))
+    } else {
+      const toAdd = dMailboxes.map(m => m.id).filter(id => !mailboxIds.includes(id))
+      setMailboxIds(prev => [...prev, ...toAdd])
+    }
+  }
+
+  function toggleAll() {
+    const all = mailboxes.map(m => m.id)
     setMailboxIds(prev => prev.length === all.length ? [] : all)
   }
+
+  // Summary info for recap
+  const selectedMailboxes = mailboxes.filter(m => mailboxIds.includes(m.id))
+  const selectedDomainIds = [...new Set(selectedMailboxes.map(m => m.domain_id))]
+  const selectedDomainNames = selectedDomainIds
+    .map(id => domains.find(d => d.id === id)?.domain)
+    .filter(Boolean) as string[]
 
   const selectedCount = listIds.length === 0
     ? totalCount
@@ -47,7 +72,7 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
     setError('')
     const fd = new FormData()
     fd.append('name', name)
-    fd.append('domain_id', domainId)
+    fd.append('domain_id', '')
     fd.append('cta_objective', objective)
     fd.append('cta_url', ctaUrl)
     fd.append('list_ids', JSON.stringify(listIds))
@@ -59,8 +84,7 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
   }
 
   const canNext1 = name.trim().length >= 2
-  const canNext2 = domainId && mailboxIds.length > 0
-  const selectedDomain = domains.find(d => d.id === domainId)
+  const canNext2 = mailboxIds.length > 0
 
   return (
     <div className="space-y-4">
@@ -95,7 +119,7 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
                 <input
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  placeholder="Ex: Warmup domaine reach.co"
+                  placeholder="Ex: Warmup multi-domaines Q3"
                   className="w-full px-3 py-2.5 rounded-xl bg-[#0a0a18] border border-[#1e1e3f] text-white text-sm placeholder-[#3b3b6f] focus:outline-none focus:border-violet-500/50 transition-colors"
                 />
               </div>
@@ -139,89 +163,104 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
             </>
           )}
 
-          {/* ── Step 2: Domain + mailboxes ───────────────────────────────── */}
+          {/* ── Step 2: Mailboxes grouped by domain ──────────────────────── */}
           {step === 2 && (
             <>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">Domaine *</label>
-                {domains.length === 0 ? (
-                  <div className="px-4 py-8 text-center rounded-xl border border-[#1e1e3f] text-sm text-[#475569]">
-                    Aucun domaine configuré.{' '}
-                    <a href="/dashboard/domaines" className="text-violet-400 hover:text-violet-300">Ajouter →</a>
-                  </div>
-                ) : (
-                  domains.map(d => (
-                    <button
-                      key={d.id}
-                      type="button"
-                      onClick={() => { setDomainId(d.id); setMailboxIds([]) }}
-                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm transition-all ${
-                        domainId === d.id
-                          ? 'border-violet-500/50 bg-violet-950/20 text-white'
-                          : 'border-[#1e1e3f] text-[#94a3b8] hover:border-[#3b3b6f]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className={`w-1.5 h-1.5 rounded-full ${d.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                        <span className="font-medium">{d.domain}</span>
-                      </div>
-                      <span className={`text-xs ${d.status === 'active' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                        {d.status === 'active' ? 'Actif' : 'Warmup'}
-                      </span>
-                    </button>
-                  ))
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">
+                  Boîtes mail *{' '}
+                  <span className="normal-case text-[#475569]">— plusieurs domaines possibles</span>
+                </label>
+                {mailboxes.length > 1 && (
+                  <button onClick={toggleAll} className="text-xs text-violet-400 hover:text-violet-300 transition-colors shrink-0">
+                    {mailboxIds.length === mailboxes.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                  </button>
                 )}
               </div>
 
-              {domainId && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">Boîtes mail *</label>
-                    {domainMailboxes.length > 1 && (
-                      <button onClick={toggleAllMailboxes} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
-                        {mailboxIds.length === domainMailboxes.length ? 'Désélectionner tout' : 'Tout sélectionner'}
-                      </button>
-                    )}
-                  </div>
-                  {domainMailboxes.length === 0 ? (
-                    <p className="text-xs text-[#475569] px-1">Aucune boîte sur ce domaine.</p>
-                  ) : (
-                    <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
-                      {domainMailboxes.map(mb => (
+              {mailboxesByDomain.size === 0 ? (
+                <div className="px-4 py-8 text-center rounded-xl border border-[#1e1e3f] text-sm text-[#475569]">
+                  Aucune boîte mail configurée.{' '}
+                  <a href="/dashboard/domaines" className="text-violet-400 hover:text-violet-300">Ajouter →</a>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                  {[...mailboxesByDomain.values()].map(({ domain, mailboxes: dMailboxes }) => {
+                    const domainSelected = dMailboxes.every(m => mailboxIds.includes(m.id))
+                    const domainPartial  = dMailboxes.some(m => mailboxIds.includes(m.id)) && !domainSelected
+                    const selectedInDomain = dMailboxes.filter(m => mailboxIds.includes(m.id)).length
+
+                    return (
+                      <div key={domain.id} className="rounded-xl border border-[#1e1e3f] overflow-hidden">
+                        {/* Domain header */}
                         <button
-                          key={mb.id}
                           type="button"
-                          onClick={() => toggleMailbox(mb.id)}
-                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm transition-all ${
-                            mailboxIds.includes(mb.id)
-                              ? 'border-violet-500/50 bg-violet-950/20 text-white'
-                              : 'border-[#1e1e3f] text-[#94a3b8] hover:border-[#3b3b6f]'
-                          }`}
+                          onClick={() => toggleDomain(domain.id)}
+                          className="w-full flex items-center justify-between px-4 py-2.5 bg-[#0a0a18] hover:bg-[#0d0d1c] transition-colors"
                         >
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${
-                            mailboxIds.includes(mb.id)
-                              ? 'bg-violet-600 border-violet-600'
-                              : 'border-[#3b3b6f]'
-                          }`}>
-                            {mailboxIds.includes(mb.id) && (
-                              <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all shrink-0 ${
+                              domainSelected ? 'bg-violet-600 border-violet-600' :
+                              domainPartial  ? 'bg-violet-600/40 border-violet-500/50' :
+                              'border-[#3b3b6f]'
+                            }`}>
+                              {(domainSelected || domainPartial) && (
+                                <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d={domainPartial ? 'M5 12h14' : 'M5 13l4 4L19 7'} />
+                                </svg>
+                              )}
+                            </div>
+                            <div className={`w-1.5 h-1.5 rounded-full ${domain.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                            <span className="text-sm font-medium text-white">{domain.domain}</span>
                           </div>
-                          <span className="truncate">{mb.email}</span>
-                          {mb.warmup_status && mb.warmup_status !== 'waiting' && (
-                            <span className="text-xs text-[#475569] ml-auto shrink-0">J{mb.warmup_status}</span>
-                          )}
+                          <span className="text-xs text-[#475569]">
+                            {selectedInDomain}/{dMailboxes.length} boîte{dMailboxes.length > 1 ? 's' : ''}
+                          </span>
                         </button>
-                      ))}
-                    </div>
-                  )}
-                  <p className="text-xs text-[#475569]">
-                    {mailboxIds.length} sélectionnée{mailboxIds.length > 1 ? 's' : ''} · Chaque boîte enverra des variantes légèrement différentes
-                  </p>
+
+                        {/* Mailbox list */}
+                        <div className="divide-y divide-[#1e1e3f]">
+                          {dMailboxes.map(mb => (
+                            <button
+                              key={mb.id}
+                              type="button"
+                              onClick={() => toggleMailbox(mb.id)}
+                              className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-all ${
+                                mailboxIds.includes(mb.id)
+                                  ? 'bg-violet-950/15 text-white'
+                                  : 'text-[#94a3b8] hover:bg-[#0d0d1c]'
+                              }`}
+                            >
+                              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${
+                                mailboxIds.includes(mb.id)
+                                  ? 'bg-violet-600 border-violet-600'
+                                  : 'border-[#3b3b6f]'
+                              }`}>
+                                {mailboxIds.includes(mb.id) && (
+                                  <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                              <span className="truncate">{mb.email}</span>
+                              {mb.warmup_status && mb.warmup_status !== 'waiting' && (
+                                <span className="text-xs text-[#475569] ml-auto shrink-0">{mb.warmup_status}</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
+
+              <p className="text-xs text-[#475569]">
+                {mailboxIds.length} boîte{mailboxIds.length > 1 ? 's' : ''} sélectionnée{mailboxIds.length > 1 ? 's' : ''}
+                {selectedDomainNames.length > 1 && (
+                  <span className="text-violet-400"> · {selectedDomainNames.length} domaines · contacts cloisonnés automatiquement</span>
+                )}
+              </p>
 
               <div className="flex gap-2">
                 <button onClick={() => setStep(1)} className="flex-1 py-2.5 rounded-xl border border-[#1e1e3f] text-[#94a3b8] text-sm hover:border-[#3b3b6f] transition-all">
@@ -253,9 +292,9 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
                   <span className="text-[#475569]">Campagne</span>
                   <span className="text-white font-medium">{name}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-[#475569]">Domaine</span>
-                  <span className="text-white">{selectedDomain?.domain}</span>
+                <div className="flex justify-between gap-4">
+                  <span className="text-[#475569] shrink-0">Domaines</span>
+                  <span className="text-white text-right text-xs">{selectedDomainNames.join(', ')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#475569]">Boîtes mail</span>
@@ -265,6 +304,14 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
                   <span className="text-[#475569]">Contacts</span>
                   <span className="text-white">{selectedCount.toLocaleString()}</span>
                 </div>
+                {selectedDomainNames.length > 1 && (
+                  <div className="flex items-start gap-3 pt-1 border-t border-[#1e1e3f] mt-1">
+                    <svg className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-emerald-400 text-xs">Cloisonnement automatique — aucun contact ne recevra 2 emails du même domaine</span>
+                  </div>
+                )}
                 {objective && (
                   <div className="flex justify-between items-start gap-4 pt-1 border-t border-[#1e1e3f] mt-1">
                     <span className="text-[#475569] shrink-0">Génération IA</span>

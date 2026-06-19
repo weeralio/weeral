@@ -86,7 +86,7 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
   const [{ data: campaign }, { data: messages }] = await Promise.all([
     supabase
       .from('warmup_campaigns')
-      .select('*, domains(domain)')
+      .select('*')
       .eq('id', id)
       .eq('user_id', user!.id)
       .single(),
@@ -107,7 +107,7 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
     mailboxIdsArr.length > 0
       ? supabase
           .from('sender_identities')
-          .select('id, email, warmup_day, warmup_status, daily_volume, sent_today')
+          .select('id, email, warmup_day, warmup_status, daily_volume, sent_today, domains(domain)')
           .in('id', mailboxIdsArr)
       : Promise.resolve({ data: [] }),
     supabase
@@ -143,8 +143,12 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
   const todayForecast = forecastPoints.find(p => p.isToday)?.forecast ?? 0
   const remaining    = forecastPoints.filter(p => p.isFuture).reduce((s, p) => s + p.forecast, 0)
 
-  const domain = Array.isArray(campaign.domains) ? campaign.domains[0] : campaign.domains
-  const cfg    = STATUS_CONFIG[campaign.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.active
+  const domainNames = [...new Set(
+    (campaignMailboxes as unknown as { domains: { domain: string } | { domain: string }[] | null }[])
+      .map(mb => { const d = Array.isArray(mb.domains) ? mb.domains[0] : mb.domains; return d?.domain })
+      .filter(Boolean)
+  )] as string[]
+  const cfg = STATUS_CONFIG[campaign.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.active
 
   const messagesByPhase = (messages ?? []).reduce((acc, m) => {
     if (!acc[m.phase as WarmupPhase]) acc[m.phase as WarmupPhase] = []
@@ -168,7 +172,7 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
           <Badge variant={cfg.variant}>{cfg.label}</Badge>
         </div>
         <p className="text-sm text-[#475569] mt-1">
-          {domain?.domain}
+          {domainNames.length > 0 ? domainNames.join(' · ') : '—'}
           {campaign.cta_objective && <span className="text-[#3b3b6f]"> · {campaign.cta_objective}</span>}
         </p>
       </div>
