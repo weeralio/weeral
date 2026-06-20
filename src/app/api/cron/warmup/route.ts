@@ -118,8 +118,8 @@ async function processWarmupSend(
     const subject = interpolateWarmup(msg.subject, contact)
     const bodyHtml = interpolateWarmup(msg.body_html, contact)
 
+    const contactId = row.contact_id ?? contact.id
     try {
-      const contactId = row.contact_id ?? contact.id
       await sendViaProvider(job.userId, {
         from:         job.email,
         fromName:     job.displayName ?? job.email,
@@ -140,6 +140,14 @@ async function processWarmupSend(
       sent++
     } catch (err) {
       console.error(`[warmup-send] Failed to send to ${contact.email}:`, err)
+      // Mark as attempted so this contact is never retried on bad address
+      await supabase.from('warmup_sends').insert({
+        warmup_campaign_id: campaign.id,
+        mailbox_id:         job.mailboxId,
+        contact_id:         contactId,
+        user_id:            job.userId,
+        warmup_day:         job.warmupDay,
+      }).then(() => {}).catch(() => {})
     }
   }
 

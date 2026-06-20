@@ -107,12 +107,12 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
     mailboxIdsArr.length > 0
       ? supabase
           .from('sender_identities')
-          .select('id, email, warmup_day, warmup_status, daily_volume, sent_today, domains(domain)')
+          .select('id, email, warmup_day, warmup_status, daily_volume, sent_today, open_rate, click_rate, hard_bounce_rate, soft_bounce_rate, complaint_rate, unsub_rate, domains(domain)')
           .in('id', mailboxIdsArr)
       : Promise.resolve({ data: [] }),
     supabase
       .from('warmup_sends')
-      .select('sent_at')
+      .select('sent_at, contact_id')
       .eq('warmup_campaign_id', id),
     supabase
       .from('contact_lists')
@@ -130,6 +130,17 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
     const d = (s.sent_at as string).split('T')[0]!
     actualByDate[d] = (actualByDate[d] ?? 0) + 1
   }
+
+  // Deliverability aggregates across all mailboxes
+  const totalWarmupSent = (sendsRes.data ?? []).length
+  const uniqueContacts  = new Set((sendsRes.data ?? []).map(s => s.contact_id)).size
+  type MbMetrics = { open_rate: number | null; click_rate: number | null; hard_bounce_rate: number | null; soft_bounce_rate: number | null; complaint_rate: number | null; unsub_rate: number | null }
+  const mbsWithMetrics = (campaignMailboxes as unknown as (typeof campaignMailboxes[0] & MbMetrics)[])
+  const activeMbs = mbsWithMetrics.filter(m => (m.open_rate ?? 0) > 0 || (m.hard_bounce_rate ?? 0) > 0)
+  const avgOpen    = activeMbs.length > 0 ? activeMbs.reduce((s, m) => s + (m.open_rate ?? 0), 0) / activeMbs.length : null
+  const avgClick   = activeMbs.length > 0 ? activeMbs.reduce((s, m) => s + (m.click_rate ?? 0), 0) / activeMbs.length : null
+  const avgBounce  = mbsWithMetrics.length > 0 ? mbsWithMetrics.reduce((s, m) => s + (m.hard_bounce_rate ?? 0) + (m.soft_bounce_rate ?? 0), 0) / mbsWithMetrics.length : null
+  const avgComplaint = mbsWithMetrics.length > 0 ? mbsWithMetrics.reduce((s, m) => s + (m.complaint_rate ?? 0), 0) / mbsWithMetrics.length : null
 
   // Build forecast data
   const forecastPoints = buildForecastPoints(
@@ -263,6 +274,52 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
                 )
               })}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Deliverability stats ───────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Délivrabilité</CardTitle>
+          <CardDescription>
+            {totalWarmupSent.toLocaleString()} email{totalWarmupSent !== 1 ? 's' : ''} envoyé{totalWarmupSent !== 1 ? 's' : ''} · {uniqueContacts.toLocaleString()} contact{uniqueContacts !== 1 ? 's' : ''} touché{uniqueContacts !== 1 ? 's' : ''}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            {[
+              { label: 'Ouverture',  value: avgOpen    != null ? `${avgOpen.toFixed(1)}%`    : '—', color: avgOpen    != null && avgOpen    >= 20 ? 'text-emerald-400' : avgOpen    != null ? 'text-amber-400' : 'text-[#475569]' },
+              { label: 'Clics',      value: avgClick   != null ? `${avgClick.toFixed(1)}%`   : '—', color: avgClick   != null && avgClick   >= 2  ? 'text-emerald-400' : avgClick   != null ? 'text-amber-400' : 'text-[#475569]' },
+              { label: 'Bounce',     value: avgBounce  != null ? `${avgBounce.toFixed(2)}%`  : '—', color: avgBounce  != null && avgBounce  > 5   ? 'text-red-400'     : avgBounce  != null ? 'text-emerald-400' : 'text-[#475569]' },
+              { label: 'Plaintes',   value: avgComplaint != null ? `${avgComplaint.toFixed(3)}%` : '—', color: avgComplaint != null && avgComplaint > 0.1 ? 'text-red-400' : avgComplaint != null ? 'text-emerald-400' : 'text-[#475569]' },
+            ].map(stat => (
+              <div key={stat.label} className="rounded-xl border border-[#1e1e3f] bg-[#0a0a18] p-3 text-center">
+                <p className="text-[10px] text-[#475569] uppercase tracking-wider mb-1">{stat.label}</p>
+                <p className={`text-xl font-bold tabular-nums ${stat.color}`}>{stat.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Per-mailbox deliverability */}
+          {mbsWithMetrics.some(m => (m.open_rate ?? 0) > 0 || (m.hard_bounce_rate ?? 0) > 0) && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] text-[#475569] uppercase tracking-wider mb-2">Par boîte</p>
+              {mbsWithMetrics.map(mb => (
+                <div key={mb.id} className="flex items-center gap-3 text-xs">
+                  <span className="text-[#94a3b8] truncate flex-1">{mb.email}</span>
+                  <span className="text-[#475569] tabular-nums shrink-0">ouv. <span className="text-white">{(mb.open_rate ?? 0).toFixed(0)}%</span></span>
+                  <span className="text-[#475569] tabular-nums shrink-0">clic <span className="text-white">{(mb.click_rate ?? 0).toFixed(1)}%</span></span>
+                  <span className={`tabular-nums shrink-0 ${(mb.hard_bounce_rate ?? 0) > 5 ? 'text-red-400' : 'text-[#475569]'}`}>
+                    bounce <span className="text-white">{((mb.hard_bounce_rate ?? 0) + (mb.soft_bounce_rate ?? 0)).toFixed(1)}%</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {totalWarmupSent === 0 && (
+            <p className="text-sm text-[#475569] text-center py-2">Aucun envoi effectué pour le moment.</p>
           )}
         </CardContent>
       </Card>

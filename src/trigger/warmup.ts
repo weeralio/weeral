@@ -4,7 +4,7 @@ import { schedules } from '@trigger.dev/sdk/v3'
 // Avance le warmup, reset sent_today, bloque si seuils dépassés
 export const warmupTask = schedules.task({
   id: 'daily-warmup',
-  cron: '0 5 * * *',
+  cron: { pattern: '0 17 * * *', timezone: 'Europe/Paris' },
   run: async () => {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.weeral.io'
     const secret = process.env.CRON_SECRET

@@ -255,7 +255,7 @@ export default async function DashboardPage() {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
   const since = thirtyDaysAgo.toISOString().split('T')[0]
 
-  const [{ data: rawLogs }, { count: emailsSentTotal }, { count: emailsOpenedTotal }] = await Promise.all([
+  const [{ data: rawLogs }, { count: emailsSentTotal }, { count: emailsOpenedTotal }, { data: warmupSendRows }] = await Promise.all([
     domainIds.length > 0
       ? supabase.from('warmup_logs').select('date, emails_sent, bounces, complaints').in('domain_id', domainIds).gte('date', since).order('date')
       : { data: [] },
@@ -265,7 +265,14 @@ export default async function DashboardPage() {
     domainIds.length > 0
       ? supabase.from('emails').select('*', { count: 'exact', head: true }).in('domain_id', domainIds).in('status', ['opened', 'clicked'])
       : { count: 0 },
+    supabase.from('warmup_sends').select('sent_at').eq('user_id', user!.id).gte('sent_at', since + 'T00:00:00'),
   ])
+
+  const warmupByDate: Record<string, number> = {}
+  for (const row of warmupSendRows ?? []) {
+    const d = (row.sent_at as string).split('T')[0]!
+    warmupByDate[d] = (warmupByDate[d] ?? 0) + 1
+  }
 
   const logMap = new Map<string, { sent: number; bounces: number; complaints: number }>()
   for (const l of rawLogs ?? []) {
@@ -273,19 +280,20 @@ export default async function DashboardPage() {
     logMap.set(l.date, { sent: cur.sent + l.emails_sent, bounces: cur.bounces + l.bounces, complaints: cur.complaints + l.complaints })
   }
 
-  const volumeData: { date: string; sent: number; bounce_rate: number; complaint_rate: number }[] = []
+  const volumeData: { date: string; sent: number; warmup_sent: number; bounce_rate: number; complaint_rate: number }[] = []
   for (let d = new Date(since + 'T12:00:00'); d <= new Date(); d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().split('T')[0]
+    const dateStr = d.toISOString().split('T')[0]!
     const stats = logMap.get(dateStr) ?? { sent: 0, bounces: 0, complaints: 0 }
     volumeData.push({
       date: dateStr,
       sent: stats.sent,
+      warmup_sent: warmupByDate[dateStr] ?? 0,
       bounce_rate: stats.sent > 0 ? parseFloat(((stats.bounces / stats.sent) * 100).toFixed(2)) : 0,
       complaint_rate: stats.sent > 0 ? parseFloat(((stats.complaints / stats.sent) * 100).toFixed(2)) : 0,
     })
   }
 
-  const totalSent30d = volumeData.reduce((s, d) => s + d.sent, 0)
+  const totalSent30d = volumeData.reduce((s, d) => s + d.sent + d.warmup_sent, 0)
   const avgBounce30d = volumeData.filter(d => d.sent > 0).reduce((s, d, _, a) => s + d.bounce_rate / a.length, 0)
   const activeMailboxes = mailboxes?.filter(m => !['completed', 'suspended', 'waiting'].includes(m.warmup_status ?? '')) ?? []
   const openRate = (emailsSentTotal ?? 0) > 0 ? ((emailsOpenedTotal ?? 0) / (emailsSentTotal ?? 0)) * 100 : 0
@@ -341,7 +349,10 @@ export default async function DashboardPage() {
           <CardDescription>Emails envoyés par jour</CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
-          <LineChart data={volumeData} series={[{ key: 'sent', label: 'Envois', color: '#8b5cf6', fill: 'rgba(139,92,246,0.08)', formatType: 'number' }]} height={180} noDataText="Aucun envoi" />
+          <LineChart data={volumeData} series={[
+            { key: 'sent',        label: 'Campagnes', color: '#8b5cf6', fill: 'rgba(139,92,246,0.08)', formatType: 'number' },
+            { key: 'warmup_sent', label: 'Warmup',    color: '#10b981', fill: 'rgba(16,185,129,0.06)', formatType: 'number' },
+          ]} height={180} noDataText="Aucun envoi" />
         </CardContent>
       </Card>
 
