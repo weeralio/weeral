@@ -19,6 +19,7 @@ const STEPS = ['Infos', 'Boîtes mail', 'Audience']
 
 export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: Props) {
   const [step, setStep]              = useState(1)
+  const [mode, setMode]              = useState<'ai' | 'manual'>('ai')
   const [name, setName]              = useState('')
   const [objective, setObjective]    = useState('')
   const [ctaUrl, setCtaUrl]          = useState('')
@@ -73,8 +74,8 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
     const fd = new FormData()
     fd.append('name', name)
     fd.append('domain_id', '')
-    fd.append('cta_objective', objective)
-    fd.append('cta_url', ctaUrl)
+    fd.append('cta_objective', mode === 'ai' ? objective : '')
+    fd.append('cta_url', mode === 'ai' ? ctaUrl : '')
     fd.append('list_ids', JSON.stringify(listIds))
     fd.append('mailbox_ids', JSON.stringify(mailboxIds))
     startTransition(async () => {
@@ -111,9 +112,28 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
       <Card>
         <CardContent className="p-6 space-y-5">
 
-          {/* ── Step 1: Name + objective ─────────────────────────────────── */}
+          {/* ── Step 1: Name + mode ──────────────────────────────────────── */}
           {step === 1 && (
             <>
+              {/* Mode toggle */}
+              <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-[#07070f] border border-[#1e1e3f]">
+                {([['ai', '✦ Générer avec l\'IA', 'L\'IA écrit les messages pour les 3 phases'], ['manual', '✏ Écrire manuellement', 'Tu écriras les messages après création']] as const).map(([m, label, desc]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMode(m)}
+                    className={`flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                      mode === m
+                        ? 'bg-violet-600 text-white shadow'
+                        : 'text-[#475569] hover:text-[#94a3b8]'
+                    }`}
+                  >
+                    <span>{label}</span>
+                    <span className={`text-[10px] font-normal ${mode === m ? 'text-violet-200' : 'text-[#3b3b6f]'}`}>{desc}</span>
+                  </button>
+                ))}
+              </div>
+
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">Nom de la campagne *</label>
                 <input
@@ -124,34 +144,49 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">
-                  Objectif CTA{' '}
-                  <span className="normal-case text-[#475569]">— pour la génération IA</span>
-                </label>
-                <textarea
-                  value={objective}
-                  onChange={e => setObjective(e.target.value)}
-                  rows={3}
-                  placeholder="Ex: Prospecter des DRH de PME pour notre logiciel RH SaaS. Cible : 30-50 salariés, secteur industrie."
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#0a0a18] border border-[#1e1e3f] text-white text-sm placeholder-[#3b3b6f] focus:outline-none focus:border-violet-500/50 transition-colors resize-none"
-                />
-                <p className="text-xs text-[#475569]">L&apos;IA adapte les messages warmup à ta cible et ton positionnement.</p>
-              </div>
+              {mode === 'ai' && (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">
+                      Objectif CTA{' '}
+                      <span className="normal-case text-[#475569]">— décris ta cible et ton offre</span>
+                    </label>
+                    <textarea
+                      value={objective}
+                      onChange={e => setObjective(e.target.value)}
+                      rows={3}
+                      placeholder="Ex: Prospecter des DRH de PME pour notre logiciel RH SaaS. Cible : 30-50 salariés, secteur industrie."
+                      className="w-full px-3 py-2.5 rounded-xl bg-[#0a0a18] border border-[#1e1e3f] text-white text-sm placeholder-[#3b3b6f] focus:outline-none focus:border-violet-500/50 transition-colors resize-none"
+                    />
+                    <p className="text-xs text-[#475569]">L&apos;IA génère les messages pour J4–J8, J9 et J10–J14 automatiquement.</p>
+                  </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">
-                  Lien CTA{' '}
-                  <span className="normal-case text-[#475569]">— utilisé à partir du J9</span>
-                </label>
-                <input
-                  value={ctaUrl}
-                  onChange={e => setCtaUrl(e.target.value)}
-                  placeholder="https://example.com/demo"
-                  type="url"
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#0a0a18] border border-[#1e1e3f] text-white text-sm placeholder-[#3b3b6f] focus:outline-none focus:border-violet-500/50 transition-colors"
-                />
-              </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">
+                      Lien CTA{' '}
+                      <span className="normal-case text-[#475569]">— utilisé à partir du J9</span>
+                    </label>
+                    <input
+                      value={ctaUrl}
+                      onChange={e => setCtaUrl(e.target.value)}
+                      placeholder="https://example.com/demo"
+                      type="url"
+                      className="w-full px-3 py-2.5 rounded-xl bg-[#0a0a18] border border-[#1e1e3f] text-white text-sm placeholder-[#3b3b6f] focus:outline-none focus:border-violet-500/50 transition-colors"
+                    />
+                  </div>
+                </>
+              )}
+
+              {mode === 'manual' && (
+                <div className="px-4 py-3 rounded-xl border border-[#1e1e3f] bg-[#07070f] flex items-start gap-3">
+                  <svg className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                  </svg>
+                  <p className="text-xs text-[#475569]">
+                    La campagne sera créée sans messages. Tu pourras écrire les contenus pour chaque phase (J4–J8, J9, J10–J14) directement depuis la page de la campagne.
+                  </p>
+                </div>
+              )}
 
               <button
                 onClick={() => setStep(2)}
@@ -312,12 +347,13 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
                     <span className="text-emerald-400 text-xs">Cloisonnement automatique — aucun contact ne recevra 2 emails du même domaine</span>
                   </div>
                 )}
-                {objective && (
-                  <div className="flex justify-between items-start gap-4 pt-1 border-t border-[#1e1e3f] mt-1">
-                    <span className="text-[#475569] shrink-0">Génération IA</span>
-                    <span className="text-emerald-400 text-xs text-right">3 phases × {Math.min(mailboxIds.length, 3)} variantes</span>
-                  </div>
-                )}
+                <div className="flex justify-between items-start gap-4 pt-1 border-t border-[#1e1e3f] mt-1">
+                  <span className="text-[#475569] shrink-0">Messages</span>
+                  {mode === 'ai'
+                    ? <span className="text-emerald-400 text-xs text-right">✦ IA · 3 phases × {Math.min(mailboxIds.length, 3)} variantes</span>
+                    : <span className="text-violet-400 text-xs text-right">✏ Manuel · à remplir après création</span>
+                  }
+                </div>
               </div>
 
               {error && <p className="text-sm text-red-400">{error}</p>}
@@ -331,7 +367,10 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
                   disabled={isPending || selectedCount === 0}
                   className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white text-sm font-medium transition-all"
                 >
-                  {isPending ? 'Génération IA...' : objective ? 'Créer & générer →' : 'Créer →'}
+                  {isPending
+                    ? (mode === 'ai' ? 'Génération IA...' : 'Création...')
+                    : (mode === 'ai' ? 'Créer & générer →' : 'Créer →')
+                  }
                 </button>
               </div>
             </>
@@ -343,7 +382,7 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
         <div className="px-4 py-3 rounded-xl border border-[#1e1e3f] bg-[#07070f]">
           <p className="text-xs text-[#475569]">
             <span className="text-[#94a3b8] font-medium">Après création :</span>{' '}
-            Le cron envoie les emails chaque jour à 5h UTC. Tu peux modifier les messages à tout moment.
+            Le cron envoie les emails chaque jour à 17h (Paris). Tu peux modifier les messages à tout moment.
           </p>
         </div>
       )}
