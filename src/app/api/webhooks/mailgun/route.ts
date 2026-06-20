@@ -33,7 +33,18 @@ export async function POST(request: Request) {
     .eq('ses_message_id', messageId)
     .single()
 
-  if (!emailRecord) return NextResponse.json({ ok: true })
+  if (!emailRecord) {
+    // Warmup email — no record in `emails` table. For permanent failures,
+    // blacklist the recipient so no future sends target this address.
+    if ((event === 'permanent_fail' || event === 'bounced') && recipient) {
+      await supabase
+        .from('contacts')
+        .update({ unsubscribed: true, unsubscribed_at: new Date().toISOString() })
+        .eq('email', recipient)
+        .eq('unsubscribed', false)
+    }
+    return NextResponse.json({ ok: true })
+  }
 
   const today = new Date().toISOString().split('T')[0]
 
