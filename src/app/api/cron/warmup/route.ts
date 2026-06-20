@@ -12,7 +12,7 @@ import {
   type MailboxMetrics,
 } from '@/lib/warmup'
 import { sendViaProvider } from '@/lib/mailer'
-import { unsubscribeUrl } from '@/lib/tokens'
+import { unsubscribeUrl, openPixelUrl } from '@/lib/tokens'
 import { NextResponse } from 'next/server'
 
 // ─── Warmup send helpers ──────────────────────────────────────────────────────
@@ -119,13 +119,17 @@ async function processWarmupSend(
     const bodyHtml = interpolateWarmup(msg.body_html, contact)
 
     const contactId = row.contact_id ?? contact.id
+    // Open pixel from J8 onward — no link rewriting (avoids spam signals early on)
+    const finalHtml = job.warmupDay >= 8
+      ? bodyHtml + `<img src="${openPixelUrl(contactId, campaign.id)}" width="1" height="1" style="display:none" alt="">`
+      : bodyHtml
     try {
       await sendViaProvider(job.userId, {
         from:         job.email,
         fromName:     job.displayName ?? job.email,
         to:           contact.email,
         subject,
-        htmlBody:     bodyHtml,
+        htmlBody:     finalHtml,
         unsubscribeUrl: unsubscribeUrl(contactId, campaign.id),
       })
 
