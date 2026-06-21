@@ -7,9 +7,10 @@ interface Props {
   mailboxId: string
   campaignId: string
   currentDay: number
+  maxDay?: number
 }
 
-export default function WarmupDayAdjuster({ mailboxId, campaignId, currentDay }: Props) {
+export default function WarmupDayAdjuster({ mailboxId, campaignId, currentDay, maxDay = 14 }: Props) {
   const [open, setOpen] = useState(false)
   const [day, setDay] = useState(currentDay)
   const [error, setError] = useState<string | null>(null)
@@ -28,18 +29,18 @@ export default function WarmupDayAdjuster({ mailboxId, campaignId, currentDay }:
   }
 
   const phaseLabel =
-    day <= 3  ? 'Repos (J1–J3)'        :
-    day <= 8  ? 'Échauffement (J4–J8)' :
-    day === 9 ? 'Premier lien (J9)'    :
-    day < 14  ? 'Campagne (J10–J13)'   :
-                'Terminé (J14+)'
+    day <= 3  ? 'Repos (J1–J3)'          :
+    day <= 8  ? 'Échauffement (J4–J8)'   :
+    day <= 10 ? 'Lien neutre (J9–J10)'   :
+    day < maxDay ? `Contenu (J11–J${maxDay - 1})` :
+                `Terminé (J${maxDay}+)`
 
   const phaseColor =
-    day <= 3  ? 'text-[#475569]'  :
-    day <= 8  ? 'text-blue-400'   :
-    day === 9 ? 'text-violet-400' :
-    day < 14  ? 'text-amber-400'  :
-                'text-emerald-400'
+    day <= 3        ? 'text-[#475569]'  :
+    day <= 8        ? 'text-blue-400'   :
+    day <= 10       ? 'text-violet-400' :
+    day < maxDay    ? 'text-amber-400'  :
+                      'text-emerald-400'
 
   if (!open) {
     return (
@@ -68,7 +69,7 @@ export default function WarmupDayAdjuster({ mailboxId, campaignId, currentDay }:
         <input
           type="range"
           min={1}
-          max={14}
+          max={maxDay}
           value={day}
           onChange={e => setDay(Number(e.target.value))}
           className="w-full accent-violet-500 cursor-pointer"
@@ -77,8 +78,8 @@ export default function WarmupDayAdjuster({ mailboxId, campaignId, currentDay }:
         <div className="flex justify-between text-[9px] text-[#3b3b6f] select-none">
           <span>J1</span>
           <span>J4</span>
-          <span>J9</span>
-          <span>J14</span>
+          <span>J{Math.round(maxDay / 2)}</span>
+          <span>J{maxDay}</span>
         </div>
       </div>
 

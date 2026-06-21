@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { anthropic, MODELS } from '@/lib/anthropic'
-import { getDailyVolumeForMailbox } from '@/lib/warmup'
+import { getDailyVolumeForMailbox, type WarmupMode } from '@/lib/warmup'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
@@ -18,6 +18,7 @@ async function aiGeneratePhaseMessages(
   ctaUrl: string | null,
   phase: WarmupPhase,
   variantCount: number,
+  mode: WarmupMode = 'accelerated',
 ): Promise<MessageVariant[]> {
   const phaseInstructions: Record<WarmupPhase, string> = {
     j4_j8: `Phase J4–J8 : échauffement sans lien.
@@ -28,7 +29,7 @@ RÈGLES ABSOLUES :
 - Objet court (< 8 mots)
 - ${variantCount} variantes légèrement différentes (angle, formulation, style)`,
 
-    j9: `Phase J9 : introduction d'un premier lien neutre.
+    j9: `Phase J9${mode === 'progressive' ? '–J10' : ''} : introduction d'un lien neutre.
 RÈGLES :
 - 1 seul lien vers du contenu utile ou éditorial (PAS une page produit)
 - Lien à insérer : ${ctaUrl ?? '[URL à définir par l\'utilisateur]'}
@@ -37,7 +38,16 @@ RÈGLES :
 - Objet court et intrigant
 - ${variantCount} variantes`,
 
-    j10_j14: `Phase J10–J14 : message de campagne avec CTA.
+    j10_j14: mode === 'progressive'
+      ? `Phase J11–J14 (mode Progressif) : contenu warmup naturel, SANS CTA commercial.
+RÈGLES :
+- Ton conversationnel et engageant, contenu utile à la cible
+- PAS de pitch produit, PAS d'appel à l'action commercial direct
+- Un lien éditorial optionnel : ${ctaUrl ?? '[si pertinent]'}
+- Personnalisation {{first_name}} bienvenue
+- Objet intrigant et naturel
+- ${variantCount} variantes`
+      : `Phase J10–J14 : message de campagne avec CTA.
 RÈGLES :
 - Message de prospection complet avec appel à l'action clair
 - CTA URL : ${ctaUrl ?? '[URL à définir par l\'utilisateur]'}
@@ -82,8 +92,10 @@ export async function createWarmupCampaign(formData: FormData): Promise<{ error?
   const domainId    = domainIdRaw || null
   const objective   = formData.get('cta_objective') as string
   const ctaUrl      = (formData.get('cta_url') as string | null) || null
-  const listIds: string[]   = JSON.parse((formData.get('list_ids') as string) || '[]')
+  const warmupMode  = ((formData.get('warmup_mode') as string) || 'accelerated') as WarmupMode
+  const listIds: string[]    = JSON.parse((formData.get('list_ids') as string) || '[]')
   const mailboxIds: string[] = JSON.parse((formData.get('mailbox_ids') as string) || '[]')
+  const domainIds: string[]  = JSON.parse((formData.get('domain_ids') as string) || '[]')
 
   if (!name || mailboxIds.length === 0) {
     return { error: 'Nom et au moins une boîte mail sont requis' }
@@ -94,6 +106,7 @@ export async function createWarmupCampaign(formData: FormData): Promise<{ error?
     .insert({
       user_id:       user.id,
       domain_id:     domainId,
+      warmup_mode:   warmupMode,
       name,
       cta_objective: objective || null,
       cta_url:       ctaUrl,
@@ -116,12 +129,12 @@ export async function createWarmupCampaign(formData: FormData): Promise<{ error?
 
   // AI-generate messages for all 3 phases if objective provided
   if (objective) {
-    const variantCount = Math.max(1, Math.min(mailboxIds.length, 3))
+    const variantCount = domainIds.length > 0 ? domainIds.length * 3 : Math.max(1, Math.min(mailboxIds.length, 3))
     const phases: WarmupPhase[] = ['j4_j8', 'j9', 'j10_j14']
 
     for (const phase of phases) {
       try {
-        const variants = await aiGeneratePhaseMessages(objective, ctaUrl, phase, variantCount)
+        const variants = await aiGeneratePhaseMessages(objective, ctaUrl, phase, variantCount, warmupMode)
         const rows = variants.map((v, i) => ({
           warmup_campaign_id: campaign.id,
           user_id:            user.id,
@@ -163,12 +176,22 @@ export async function generateMessagesForPhase(
   if (!campaign.cta_objective) return { error: 'Objectif requis pour la génération IA' }
 
   try {
-    const variantCount = Math.max(1, Math.min((campaign.mailbox_ids as string[]).length, 3))
+    const campaignMode = ((campaign as { warmup_mode?: string }).warmup_mode ?? 'accelerated') as WarmupMode
+    const mailboxIdsArr = campaign.mailbox_ids as string[]
+    const { data: mbData } = await supabase
+      .from('sender_identities')
+      .select('domain_id')
+      .in('id', mailboxIdsArr)
+    const uniqueDomainCount = new Set((mbData ?? []).map((m: { domain_id: string }) => m.domain_id)).size
+    const variantCount = uniqueDomainCount > 1
+      ? uniqueDomainCount * 3
+      : Math.max(1, Math.min(mailboxIdsArr.length, 3))
     const variants = await aiGeneratePhaseMessages(
       campaign.cta_objective,
       campaign.cta_url ?? null,
       phase,
       variantCount,
+      campaignMode,
     )
 
     for (let i = 0; i < variants.length; i++) {
@@ -263,10 +286,18 @@ export async function adjustWarmupDay(
 
   if (!mb) return { error: 'Boîte introuvable' }
 
-  const day = Math.max(1, Math.min(14, targetDay))
+  const { data: campData } = await supabase
+    .from('warmup_campaigns')
+    .select('warmup_mode')
+    .eq('id', campaignId)
+    .single()
+  const campMode = ((campData?.warmup_mode as string) ?? 'accelerated') as WarmupMode
+  const maxDay   = campMode === 'progressive' ? 40 : 14
+
+  const day = Math.max(1, Math.min(maxDay, targetDay))
   const warmupStatus =
-    day >= 14 ? 'completed' :
-    day >= 4  ? 'active' :
+    day >= maxDay ? 'completed' :
+    day >= 4      ? 'active' :
     'resting'
 
   const { error } = await supabase

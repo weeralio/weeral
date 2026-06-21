@@ -107,7 +107,7 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
     mailboxIdsArr.length > 0
       ? supabase
           .from('sender_identities')
-          .select('id, email, warmup_day, warmup_status, daily_volume, sent_today, open_rate, click_rate, hard_bounce_rate, soft_bounce_rate, complaint_rate, unsub_rate, domains(domain)')
+          .select('id, email, domain_id, warmup_day, warmup_status, daily_volume, sent_today, open_rate, click_rate, hard_bounce_rate, soft_bounce_rate, complaint_rate, unsub_rate, domains(domain)')
           .in('id', mailboxIdsArr)
       : Promise.resolve({ data: [] }),
     supabase
@@ -154,11 +154,21 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
   const todayForecast = forecastPoints.find(p => p.isToday)?.forecast ?? 0
   const remaining    = forecastPoints.filter(p => p.isFuture).reduce((s, p) => s + p.forecast, 0)
 
-  const domainNames = [...new Set(
-    (campaignMailboxes as unknown as { domains: { domain: string } | { domain: string }[] | null }[])
-      .map(mb => { const d = Array.isArray(mb.domains) ? mb.domains[0] : mb.domains; return d?.domain })
-      .filter(Boolean)
-  )] as string[]
+  // Stable domain order: sort by domain_id UUID string so UI and cron agree
+  type MbWithDomainId = { domain_id: string; domains: { domain: string } | { domain: string }[] | null }
+  const mbsTyped = campaignMailboxes as unknown as (typeof campaignMailboxes[0] & MbWithDomainId)[]
+  const uniqueDomainIds = [...new Set(mbsTyped.map(mb => mb.domain_id).filter(Boolean))].sort()
+  const domainNames = uniqueDomainIds.map(did => {
+    const mb = mbsTyped.find(m => m.domain_id === did)
+    const d = Array.isArray(mb?.domains) ? mb?.domains[0] : mb?.domains
+    return (d as { domain: string } | null)?.domain ?? did
+  })
+  // 3 variants per domain for multi-domain campaigns; 3 max otherwise
+  const baseVariantCount = domainNames.length > 1
+    ? domainNames.length * 3
+    : Math.max(1, Math.min(mailboxIdsArr.length, 3))
+  const warmupMode  = (campaign.warmup_mode as string) ?? 'accelerated'
+  const maxWarmupDay = warmupMode === 'progressive' ? 40 : 14
   const cfg = STATUS_CONFIG[campaign.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.active
 
   const messagesByPhase = (messages ?? []).reduce((acc, m) => {
@@ -181,6 +191,13 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-white">{campaign.name}</h1>
           <Badge variant={cfg.variant}>{cfg.label}</Badge>
+          <span className={`text-[10px] px-2 py-1 rounded-full border ${
+            warmupMode === 'progressive'
+              ? 'border-emerald-700/40 bg-emerald-950/30 text-emerald-400'
+              : 'border-amber-700/40 bg-amber-950/30 text-amber-400'
+          }`}>
+            {warmupMode === 'progressive' ? 'Progressif · 40j' : 'Accéléré · 14j'}
+          </span>
         </div>
         <p className="text-sm text-[#475569] mt-1">
           {domainNames.length > 0 ? domainNames.join(' · ') : '—'}
@@ -260,6 +277,7 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
                         mailboxId={mb.id}
                         campaignId={id}
                         currentDay={day}
+                        maxDay={maxWarmupDay}
                       />
                     </div>
                     {!isResting && (mb.daily_volume ?? 0) > 0 && (
@@ -343,8 +361,9 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
 
       {/* ── Message editors ────────────────────────────────────────────────────── */}
       {(['j4_j8', 'j9', 'j10_j14'] as WarmupPhase[]).map(phase => {
-        const info         = PHASE_INFO[phase]
+        const info          = PHASE_INFO[phase]
         const phaseMessages = messagesByPhase[phase] ?? []
+        const variantCount  = baseVariantCount
 
         return (
           <Card key={phase}>
@@ -367,9 +386,10 @@ export default async function WarmupCampaignDetailPage({ params }: { params: Pro
                 campaignId={id}
                 phase={phase}
                 messages={phaseMessages}
-                variantCount={Math.max(1, Math.min(mailboxIdsArr.length, 3))}
+                variantCount={variantCount}
                 hasObjective={!!campaign.cta_objective}
                 ctaUrl={campaign.cta_url ?? null}
+                domainNames={domainNames.length > 1 ? domainNames : undefined}
               />
             </CardContent>
           </Card>

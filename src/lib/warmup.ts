@@ -1,48 +1,80 @@
-// ─── Volume schedule ──────────────────────────────────────────────────────────
-// J1–J3 : repos obligatoire (aucun envoi)
-// J4    : 5 emails (démarrage)
-// J5+   : +10 %/jour, plafond 5 000/boîte
-// Warmup considéré terminé à J14
+// ─── Modes de warmup ─────────────────────────────────────────────────────────
+
+export type WarmupMode = 'accelerated' | 'progressive'
 
 const MAX_VOLUME = 5_000
-const GROWTH_RATE = 1.1
-export const WARMUP_TOTAL_DAYS = 14  // domaine marqué warmed_up au J14
+export const WARMUP_TOTAL_DAYS             = 14   // accéléré
+export const WARMUP_TOTAL_DAYS_PROGRESSIVE = 40   // progressif
 
-export function getDailyVolumeForMailbox(warmupDay: number, previousVolume = 5): number {
+// ── Accéléré (schéma original) ────────────────────────────────────────────────
+// J1–J3 : 0  |  J4 : 5  |  J5+ : +10%/jour, plafond 5 000
+function getAcceleratedVolume(warmupDay: number, previousVolume = 5): number {
   if (warmupDay <= 3) return 0
   if (warmupDay === 4) return 5
-  return Math.min(Math.round(previousVolume * GROWTH_RATE), MAX_VOLUME)
+  return Math.min(Math.round(previousVolume * 1.1), MAX_VOLUME)
+}
+
+// ── Progressif (nouveau schéma) ───────────────────────────────────────────────
+// J4–J8  : 5 → 15 (sans lien)
+// J9–J10 : 15–16 (premier lien neutre sur 2 jours)
+// J11–J14 : 15 → 21 (contenu warmup, pas de campagne)
+// J15–J21 : 21 → 30
+// J22+    : +5%/jour
+function getProgressiveVolume(warmupDay: number, previousVolume = 5): number {
+  if (warmupDay <= 3) return 0
+  if (warmupDay === 4) return 5
+  if (warmupDay <= 8) return Math.round(5 + (warmupDay - 4) * 2.5)    // 5 → 15
+  if (warmupDay <= 10) return 15 + (warmupDay - 9)                     // 15, 16
+  if (warmupDay <= 14) return Math.round(15 + (warmupDay - 11) * 2)   // 15 → 21
+  if (warmupDay <= 21) return Math.round(21 + (warmupDay - 15) * 1.5) // 21 → 30
+  return Math.min(Math.round(previousVolume * 1.05), MAX_VOLUME)
+}
+
+export function getDailyVolumeForMailbox(warmupDay: number, previousVolume = 5, mode: WarmupMode = 'accelerated'): number {
+  return mode === 'progressive'
+    ? getProgressiveVolume(warmupDay, previousVolume)
+    : getAcceleratedVolume(warmupDay, previousVolume)
 }
 
 export function isRestPeriod(warmupDay: number): boolean {
   return warmupDay >= 1 && warmupDay <= 3
 }
 
-export function isWarmupComplete(warmupDay: number): boolean {
-  return warmupDay >= WARMUP_TOTAL_DAYS
+export function isWarmupComplete(warmupDay: number, mode: WarmupMode = 'accelerated'): boolean {
+  return warmupDay >= (mode === 'progressive' ? WARMUP_TOTAL_DAYS_PROGRESSIVE : WARMUP_TOTAL_DAYS)
 }
 
-// J4–J11 : 50% des destinataires = boîtes contrôlées
-export function requiresControlledBoxes(warmupDay: number): boolean {
+// Boîtes de contrôle : J4–J11 (accéléré) | J4–J10 (progressif)
+export function requiresControlledBoxes(warmupDay: number, mode: WarmupMode = 'accelerated'): boolean {
+  if (mode === 'progressive') return warmupDay >= 4 && warmupDay <= 10
   return warmupDay >= 4 && warmupDay <= 11
 }
 
-export function getControlledRatio(warmupDay: number): number {
-  return requiresControlledBoxes(warmupDay) ? 0.5 : 0
+export function getControlledRatio(warmupDay: number, mode: WarmupMode = 'accelerated'): number {
+  return requiresControlledBoxes(warmupDay, mode) ? 0.5 : 0
 }
 
-export function getContentType(warmupDay: number): 'conversational' | 'neutral_link' | 'campaign' {
+export function getContentType(warmupDay: number, mode: WarmupMode = 'accelerated'): 'conversational' | 'neutral_link' | 'campaign' {
   if (warmupDay <= 8) return 'conversational'
-  if (warmupDay === 9) return 'neutral_link'
+  if (mode === 'progressive' && warmupDay <= 10) return 'neutral_link'
+  if (mode === 'accelerated' && warmupDay === 9) return 'neutral_link'
   return 'campaign'
 }
 
-export function hasAbTest(warmupDay: number): boolean {
-  return warmupDay >= 10
+export function hasAbTest(warmupDay: number, mode: WarmupMode = 'accelerated'): boolean {
+  return mode === 'progressive' ? warmupDay >= 11 : warmupDay >= 10
+}
+
+// Phase de message selon le jour et le mode
+export function getPhaseForDay(warmupDay: number, mode: WarmupMode = 'accelerated'): 'j4_j8' | 'j9' | 'j10_j14' {
+  if (warmupDay <= 8) return 'j4_j8'
+  if (mode === 'progressive' && warmupDay <= 10) return 'j9'
+  if (mode === 'accelerated' && warmupDay === 9) return 'j9'
+  return 'j10_j14'
 }
 
 // Label descriptif pour l'UI
-export function getPhaseLabel(warmupDay: number): { name: string; description: string; hint: string } {
+export function getPhaseLabel(warmupDay: number, mode: WarmupMode = 'accelerated'): { name: string; description: string; hint: string } {
   if (warmupDay <= 3) return {
     name: 'Repos post-acquisition',
     description: 'Période de repos obligatoire. Les FAI ont besoin de temps pour enregistrer le nouveau domaine.',
@@ -53,10 +85,32 @@ export function getPhaseLabel(warmupDay: number): { name: string; description: s
     description: 'Petits volumes conversationnels sans lien. Les FAI apprennent à faire confiance à ta boîte.',
     hint: 'Contenu humain, naturel. Zéro mot trigger spam. 50% des destinataires sont tes boîtes de contrôle.',
   }
-  if (warmupDay === 9) return {
+  if (mode === 'progressive' && warmupDay <= 10) return {
+    name: 'Introduction lien neutre',
+    description: 'Introduction d\'un lien non commercial sur 2 jours. Volume maintenu bas.',
+    hint: 'Lien vers contenu éditorial uniquement. Surveille le taux de clic.',
+  }
+  if (mode === 'accelerated' && warmupDay === 9) return {
     name: 'Premier lien neutre',
     description: 'Introduction d\'un lien non commercial (article, ressource). Test de cliquabilité.',
-    hint: 'Utilise un lien vers du contenu éditorial. Surveille le taux de clic — c\'est un signal fort pour les FAI.',
+    hint: 'Utilise un lien vers du contenu éditorial. Le taux de clic est un signal fort pour les FAI.',
+  }
+  if (mode === 'progressive') {
+    if (warmupDay <= 14) return {
+      name: 'Montée douce (warmup)',
+      description: 'Volume en croissance prudemment — contenu warmup, pas de campagne réelle.',
+      hint: 'La réputation continue de se construire. Pas de contenu commercial pour l\'instant.',
+    }
+    if (warmupDay <= 21) return {
+      name: 'Phase intermédiaire',
+      description: 'Montée vers 30 emails/boîte. Surveillance active des métriques.',
+      hint: 'Volume modéré, contenu toujours warmup.',
+    }
+    return {
+      name: 'Accélération douce',
+      description: '+5%/jour jusqu\'au plafond de 5 000 emails/boîte/jour.',
+      hint: 'Le vrai contenu campagne peut être introduit prudemment.',
+    }
   }
   if (warmupDay <= 11) return {
     name: 'Contenu réel + A/B test',
@@ -99,9 +153,6 @@ export interface MonitoringResult {
 }
 
 // Règle fondamentale : jamais de saut d'étape
-// current_step 0 → max nextStep 1
-// current_step 1 → max nextStep 2
-// etc.
 function clampStep(current: SuspensionStep, desired: SuspensionStep): SuspensionStep {
   return Math.min(current + 1, desired, 4) as SuspensionStep
 }
@@ -120,10 +171,10 @@ export interface MailboxMetrics {
   unsub_rate: number
   open_rate: number
   click_rate: number
-  open_rate_previous?: number   // from yesterday's event
+  open_rate_previous?: number
   click_rate_previous?: number
-  consecutive_low_opens?: number   // count of sends with open_rate < 5%
-  consecutive_low_clicks?: number  // count of sends with click_rate < 0.5%
+  consecutive_low_opens?: number
+  consecutive_low_clicks?: number
   current_step: SuspensionStep
 }
 
@@ -131,7 +182,6 @@ export interface MailboxMetrics {
 export function checkMonitoring(m: MailboxMetrics): MonitoringResult | null {
   const { current_step } = m
 
-  // ── Plaintes spam (priorité maximale) ──
   if (m.complaint_rate > THRESHOLDS.complaint.critical) {
     const next = clampStep(current_step, 3)
     return {
@@ -142,7 +192,6 @@ export function checkMonitoring(m: MailboxMetrics): MonitoringResult | null {
     }
   }
 
-  // ── Bounce hard critique ──
   if (m.hard_bounce_rate > THRESHOLDS.hardBounce.critical) {
     const next = clampStep(current_step, 3)
     return {
@@ -153,7 +202,6 @@ export function checkMonitoring(m: MailboxMetrics): MonitoringResult | null {
     }
   }
 
-  // ── Désabonnements critiques ──
   if (m.unsub_rate > THRESHOLDS.unsub.critical) {
     const next = clampStep(current_step, 2)
     return {
@@ -164,7 +212,6 @@ export function checkMonitoring(m: MailboxMetrics): MonitoringResult | null {
     }
   }
 
-  // ── Alertes niveau 1 (envois continuent, step → 1 max) ──
   if (m.complaint_rate > THRESHOLDS.complaint.alert && current_step === 0) {
     return {
       nextStep: 1, level: 'alert',
@@ -192,7 +239,6 @@ export function checkMonitoring(m: MailboxMetrics): MonitoringResult | null {
     }
   }
 
-  // ── Chute d'ouverture ──
   if (m.open_rate_previous !== undefined && m.open_rate_previous > 0) {
     const drop = ((m.open_rate_previous - m.open_rate) / m.open_rate_previous) * 100
     if (drop > THRESHOLDS.openDrop.alert && current_step === 0) {
@@ -215,7 +261,6 @@ export function checkMonitoring(m: MailboxMetrics): MonitoringResult | null {
     }
   }
 
-  // ── Chute de clic ──
   if (m.click_rate_previous !== undefined && m.click_rate_previous > 0) {
     const drop = ((m.click_rate_previous - m.click_rate) / m.click_rate_previous) * 100
     if (drop > THRESHOLDS.clickDrop.alert && current_step === 0) {
@@ -241,14 +286,12 @@ export function checkMonitoring(m: MailboxMetrics): MonitoringResult | null {
   return null
 }
 
-// Volume effectif selon le step de suspension
 export function getEffectiveVolume(plannedVolume: number, suspensionStep: SuspensionStep): number {
-  if (suspensionStep >= 3) return 0              // suspended
-  if (suspensionStep === 2) return Math.floor(plannedVolume * 0.5)  // restricted
+  if (suspensionStep >= 3) return 0
+  if (suspensionStep === 2) return Math.floor(plannedVolume * 0.5)
   return plannedVolume
 }
 
-// Après suspension : durée de repos minimum avant reprise
 export const SUSPENSION_COOLDOWN_DAYS = 10
 
 export function canResume(suspendedUntil: Date | null): boolean {
@@ -256,7 +299,7 @@ export function canResume(suspendedUntil: Date | null): boolean {
   return new Date() >= suspendedUntil
 }
 
-// Deprecated compat exports (domain-level, kept for existing UI)
+// Deprecated compat exports
 export const BOUNCE_RATE_THRESHOLD    = 5
 export const COMPLAINT_RATE_THRESHOLD = 0.1
 export function getDailyLimit(warmupDay: number): number {

@@ -30,10 +30,11 @@ interface Props {
   ctaUrl:        string | null
   campaignStatus?: string
   isControls?:   boolean
+  domainNames?:  string[]
 }
 
 export default function MessageEditor({
-  campaignId, phase, messages, variantCount, hasObjective, ctaUrl, campaignStatus, isControls
+  campaignId, phase, messages, variantCount, hasObjective, ctaUrl, campaignStatus, isControls, domainNames
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -56,7 +57,7 @@ export default function MessageEditor({
             <p className="text-xs text-[#475569] mt-0.5">
               {campaignStatus === 'active'
                 ? 'Aucun email ne sera envoyé pendant la pause.'
-                : 'Les envois reprennent dès le prochain cron (5h UTC).'}
+                : 'Les envois reprennent dès le prochain cron (17h Paris).'}
             </p>
           </div>
           <button
@@ -167,23 +168,54 @@ export default function MessageEditor({
     <div className="space-y-4">
       {/* Variant tabs */}
       {variantCount > 1 && (
-        <div className="flex gap-1.5">
-          {variants.map((v, i) => (
-            <button
-              key={i}
-              onClick={() => { setActiveVariant(i); setEditMode(null) }}
-              className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
-                activeVariant === i
-                  ? 'border-violet-500/50 bg-violet-950/20 text-violet-200'
-                  : 'border-[#1e1e3f] text-[#475569] hover:border-[#3b3b6f]'
-              }`}
-            >
-              Variante {i + 1}
-              {v?.ai_generated && <span className="ml-1 text-[9px] text-violet-400">IA</span>}
-              {!v && <span className="ml-1 text-[9px] text-[#3b3b6f]">vide</span>}
-            </button>
-          ))}
-        </div>
+        domainNames && domainNames.length > 1 ? (
+          <div className="space-y-2">
+            {domainNames.map((domain, dIdx) => (
+              <div key={dIdx} className="space-y-1">
+                <p className="text-[10px] text-[#475569] uppercase tracking-wider">{domain}</p>
+                <div className="flex gap-1.5">
+                  {[0, 1, 2].map(offset => {
+                    const i = dIdx * 3 + offset
+                    const v = variants[i]
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => { setActiveVariant(i); setEditMode(null) }}
+                        className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                          activeVariant === i
+                            ? 'border-violet-500/50 bg-violet-950/20 text-violet-200'
+                            : 'border-[#1e1e3f] text-[#475569] hover:border-[#3b3b6f]'
+                        }`}
+                      >
+                        V{offset + 1}
+                        {v?.ai_generated && <span className="ml-1 text-[9px] text-violet-400">IA</span>}
+                        {!v && <span className="ml-1 text-[9px] text-[#3b3b6f]">vide</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex gap-1.5">
+            {variants.map((v, i) => (
+              <button
+                key={i}
+                onClick={() => { setActiveVariant(i); setEditMode(null) }}
+                className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                  activeVariant === i
+                    ? 'border-violet-500/50 bg-violet-950/20 text-violet-200'
+                    : 'border-[#1e1e3f] text-[#475569] hover:border-[#3b3b6f]'
+                }`}
+              >
+                Variante {i + 1}
+                {v?.ai_generated && <span className="ml-1 text-[9px] text-violet-400">IA</span>}
+                {!v && <span className="ml-1 text-[9px] text-[#3b3b6f]">vide</span>}
+              </button>
+            ))}
+          </div>
+        )
       )}
 
       {/* No messages → CTA to generate or add */}

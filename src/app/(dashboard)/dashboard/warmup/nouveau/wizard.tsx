@@ -19,6 +19,7 @@ const STEPS = ['Infos', 'Boîtes mail', 'Audience']
 
 export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: Props) {
   const [step, setStep]              = useState(1)
+  const [warmupMode, setWarmupMode]  = useState<'progressive' | 'accelerated'>('progressive')
   const [mode, setMode]              = useState<'ai' | 'manual'>('ai')
   const [name, setName]              = useState('')
   const [objective, setObjective]    = useState('')
@@ -58,9 +59,10 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
     setMailboxIds(prev => prev.length === all.length ? [] : all)
   }
 
-  // Summary info for recap
-  const selectedMailboxes = mailboxes.filter(m => mailboxIds.includes(m.id))
-  const selectedDomainIds = [...new Set(selectedMailboxes.map(m => m.domain_id))]
+  // Summary info for recap — domain order follows the domains prop for stability
+  const selectedDomainIds = domains
+    .map(d => d.id)
+    .filter(id => mailboxesByDomain.has(id) && mailboxesByDomain.get(id)!.mailboxes.some(m => mailboxIds.includes(m.id)))
   const selectedDomainNames = selectedDomainIds
     .map(id => domains.find(d => d.id === id)?.domain)
     .filter(Boolean) as string[]
@@ -73,7 +75,9 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
     setError('')
     const fd = new FormData()
     fd.append('name', name)
+    fd.append('warmup_mode', warmupMode)
     fd.append('domain_id', '')
+    fd.append('domain_ids', JSON.stringify(selectedDomainIds))
     fd.append('cta_objective', mode === 'ai' ? objective : '')
     fd.append('cta_url', mode === 'ai' ? ctaUrl : '')
     fd.append('list_ids', JSON.stringify(listIds))
@@ -115,7 +119,46 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
           {/* ── Step 1: Name + mode ──────────────────────────────────────── */}
           {step === 1 && (
             <>
-              {/* Mode toggle */}
+              {/* Warmup mode selector */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">Mode de warmup</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setWarmupMode('progressive')}
+                    className={`flex flex-col gap-1 p-3 rounded-xl border text-left transition-all ${
+                      warmupMode === 'progressive'
+                        ? 'border-emerald-500/40 bg-emerald-950/20'
+                        : 'border-[#1e1e3f] hover:border-[#3b3b6f]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-white">Progressif</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-700/40 text-emerald-400 shrink-0">Recommandé</span>
+                    </div>
+                    <span className="text-[11px] text-[#475569]">40 jours · protection maximale</span>
+                    <span className="text-[10px] text-emerald-400/70">Idéal pour tout domaine</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWarmupMode('accelerated')}
+                    className={`flex flex-col gap-1 p-3 rounded-xl border text-left transition-all ${
+                      warmupMode === 'accelerated'
+                        ? 'border-amber-500/40 bg-amber-950/10'
+                        : 'border-[#1e1e3f] hover:border-[#3b3b6f]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-white">Accéléré</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-950/60 border border-amber-700/40 text-amber-400 shrink-0">14 jours</span>
+                    </div>
+                    <span className="text-[11px] text-[#475569]">Résultats plus rapides</span>
+                    <span className="text-[10px] text-amber-400/70">⚠ Risque accru si domaine &lt; 30j</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* AI / manual content mode toggle */}
               <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-[#07070f] border border-[#1e1e3f]">
                 {([['ai', '✦ Générer avec l\'IA', 'L\'IA écrit les messages pour les 3 phases'], ['manual', '✏ Écrire manuellement', 'Tu écriras les messages après création']] as const).map(([m, label, desc]) => (
                   <button
@@ -327,6 +370,13 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
                   <span className="text-[#475569]">Campagne</span>
                   <span className="text-white font-medium">{name}</span>
                 </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[#475569]">Mode</span>
+                  {warmupMode === 'progressive'
+                    ? <span className="text-emerald-400 text-xs">Progressif · 40 jours</span>
+                    : <span className="text-amber-400 text-xs">Accéléré · 14 jours</span>
+                  }
+                </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-[#475569] shrink-0">Domaines</span>
                   <span className="text-white text-right text-xs">{selectedDomainNames.join(', ')}</span>
@@ -350,7 +400,7 @@ export default function WarmupWizard({ domains, mailboxes, lists, totalCount }: 
                 <div className="flex justify-between items-start gap-4 pt-1 border-t border-[#1e1e3f] mt-1">
                   <span className="text-[#475569] shrink-0">Messages</span>
                   {mode === 'ai'
-                    ? <span className="text-emerald-400 text-xs text-right">✦ IA · 3 phases × {Math.min(mailboxIds.length, 3)} variantes</span>
+                    ? <span className="text-emerald-400 text-xs text-right">✦ IA · 3 phases × {selectedDomainIds.length > 0 ? selectedDomainIds.length * 3 : Math.min(mailboxIds.length, 3)} variantes</span>
                     : <span className="text-violet-400 text-xs text-right">✏ Manuel · à remplir après création</span>
                   }
                 </div>

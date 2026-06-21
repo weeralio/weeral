@@ -8,6 +8,8 @@ import {
   canResume,
   SUSPENSION_COOLDOWN_DAYS,
   isWarmupComplete,
+  getPhaseForDay,
+  type WarmupMode,
   type SuspensionStep,
   type MailboxMetrics,
 } from '@/lib/warmup'
@@ -32,14 +34,10 @@ async function processWarmupSend(
   supabase: any,
   job: SendJob,
 ): Promise<number> {
-  const phase =
-    job.warmupDay <= 8  ? 'j4_j8' :
-    job.warmupDay === 9 ? 'j9' : 'j10_j14'
-
   // Find active warmup campaign for this mailbox
   const { data: campaigns } = await supabase
     .from('warmup_campaigns')
-    .select('id, list_ids, mailbox_ids, cta_url')
+    .select('id, list_ids, mailbox_ids, cta_url, warmup_mode')
     .eq('user_id', job.userId)
     .eq('status', 'active')
     .contains('mailbox_ids', [job.mailboxId])
@@ -48,7 +46,10 @@ async function processWarmupSend(
   const campaign = campaigns?.[0]
   if (!campaign) return 0
 
-  // Get mailbox index within the campaign to pick the right variant
+  const campaignMode = ((campaign.warmup_mode as string) || 'accelerated') as WarmupMode
+  const phase = getPhaseForDay(job.warmupDay, campaignMode)
+
+  // Get mailbox index within the campaign
   const mailboxIds = campaign.mailbox_ids as string[]
   const mailboxIndex = mailboxIds.indexOf(job.mailboxId)
 
@@ -62,8 +63,32 @@ async function processWarmupSend(
 
   if (!msgs?.length) return 0
 
-  // Pick variant based on mailbox position (round-robin)
-  const msg = msgs[mailboxIndex % msgs.length]
+  // Derive domain order from campaign mailboxes (sorted by domain_id UUID — same sort the UI uses)
+  const { data: mbDomainData } = await supabase
+    .from('sender_identities')
+    .select('id, domain_id')
+    .in('id', mailboxIds)
+
+  const mbDomainMap = Object.fromEntries(
+    (mbDomainData ?? []).map((m: { id: string; domain_id: string }) => [m.id, m.domain_id])
+  )
+  const uniqueDomainIds = [...new Set(Object.values(mbDomainMap))].sort()
+  const domainIndex = uniqueDomainIds.length > 1 ? uniqueDomainIds.indexOf(job.domainId) : -1
+
+  let msg: typeof msgs[0] | undefined
+  if (domainIndex >= 0) {
+    // Find this mailbox's rank among siblings of the same domain (in campaign mailbox order)
+    const orderedSiblings = mailboxIds.filter(id => mbDomainMap[id] === job.domainId)
+    const rankInDomain = Math.max(0, orderedSiblings.indexOf(job.mailboxId))
+    const variantBase = domainIndex * 3
+    const targetIndex = variantBase + (rankInDomain % 3)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    msg = msgs.find((m: any) => m.variant_index === targetIndex) ?? msgs[mailboxIndex % msgs.length]
+  } else {
+    // Single domain or legacy: round-robin across all variants
+    msg = msgs[mailboxIndex % msgs.length]
+  }
+
   if (!msg) return 0
 
   // Get all contact IDs already sent to by ANY mailbox in this campaign
@@ -206,6 +231,19 @@ export async function POST(request: Request) {
 
   if (mbError) return NextResponse.json({ error: mbError.message }, { status: 500 })
 
+  // ── 1.5. Build mailbox → warmup_mode map from active campaigns ─────────────
+  const { data: campaignsForMode } = await supabase
+    .from('warmup_campaigns')
+    .select('mailbox_ids, warmup_mode')
+    .eq('status', 'active')
+
+  const mailboxModeMap: Record<string, WarmupMode> = {}
+  for (const c of campaignsForMode ?? []) {
+    for (const mbId of (c.mailbox_ids as string[]) ?? []) {
+      mailboxModeMap[mbId] = ((c.warmup_mode as string) || 'accelerated') as WarmupMode
+    }
+  }
+
   // ── 2. Per-user: count controlled reply boxes ──────────────────────────────
   const userIds = [...new Set((mailboxes ?? []).map(m => m.user_id))]
   const replyBoxMap: Record<string, number> = {}
@@ -269,6 +307,8 @@ export async function POST(request: Request) {
   const mailboxNextDay: Record<string, number> = {}
 
   for (const mailbox of mailboxes ?? []) {
+    const mode = mailboxModeMap[mailbox.id] ?? 'accelerated'
+
     // Already-completed mailboxes are fetched only so step-7 can see them; skip processing
     if (mailbox.warmup_status === 'completed') {
       mailboxNextDay[mailbox.id] = mailbox.warmup_day ?? 14
@@ -285,7 +325,7 @@ export async function POST(request: Request) {
         stats.suspended++
         continue  // Still cooling down
       }
-      // Resume: reset to restricted, knock back 5 days as warmup restart
+      // Resume: reset to active, knock back 5 days as warmup restart
       const resumeDay = Math.max(1, (mailbox.warmup_day ?? 1) - 5)
       dbUpdates.push(
         supabase.from('sender_identities').update({
@@ -294,7 +334,7 @@ export async function POST(request: Request) {
           suspension_step: 0,
           suspended_until: null,
           suspension_reason: null,
-          daily_volume: getDailyVolumeForMailbox(resumeDay),
+          daily_volume: getDailyVolumeForMailbox(resumeDay, 5, mode),
           sent_today: 0,
           last_warmup_at: new Date().toISOString(),
         }).eq('id', mailbox.id)
@@ -421,11 +461,11 @@ export async function POST(request: Request) {
     }
 
     // ─── D. Compute today's volume ─────────────────────────────────────────
-    const planned = getDailyVolumeForMailbox(nextDay, mailbox.daily_volume ?? 5)
+    const planned = getDailyVolumeForMailbox(nextDay, mailbox.daily_volume ?? 5, mode)
     const suspStep = (monitoringResult?.nextStep ?? mailbox.suspension_step ?? 0) as SuspensionStep
     const effective = getEffectiveVolume(planned, suspStep)
-    const contentType = getContentType(nextDay)
-    const needsControlled = requiresControlledBoxes(nextDay)
+    const contentType = getContentType(nextDay, mode)
+    const needsControlled = requiresControlledBoxes(nextDay, mode)
     const controlledBoxCount = replyBoxMap[mailbox.user_id] ?? 0
 
     // Warn if controlled boxes needed but missing
@@ -441,7 +481,7 @@ export async function POST(request: Request) {
     }
 
     const controlledPct = needsControlled && controlledBoxCount > 0 ? 50 : 0
-    const newStatus = isWarmupComplete(nextDay) ? 'completed' : 'active'
+    const newStatus = isWarmupComplete(nextDay, mode) ? 'completed' : 'active'
 
     // ─── E. Advance mailbox to next day ───────────────────────────────────
     dbUpdates.push(
@@ -529,7 +569,8 @@ export async function POST(request: Request) {
   const completedByDomain: Record<string, string> = {}
   for (const mb of mailboxes ?? []) {
     const effectiveDay = mailboxNextDay[mb.id] ?? mb.warmup_day ?? 0
-    if (mb.warmup_status === 'completed' || effectiveDay >= 14) {
+    const mbMode = mailboxModeMap[mb.id] ?? 'accelerated'
+    if (mb.warmup_status === 'completed' || isWarmupComplete(effectiveDay, mbMode)) {
       completedByDomain[mb.domain_id] = mb.user_id
     }
   }
@@ -537,7 +578,8 @@ export async function POST(request: Request) {
     const allForDomain = (mailboxes ?? []).filter(m => m.domain_id === domainId)
     const allComplete  = allForDomain.every(m => {
       const effectiveDay = mailboxNextDay[m.id] ?? m.warmup_day ?? 0
-      return m.warmup_status === 'completed' || effectiveDay >= 14
+      const mbMode = mailboxModeMap[m.id] ?? 'accelerated'
+      return m.warmup_status === 'completed' || isWarmupComplete(effectiveDay, mbMode)
     })
     if (allComplete && allForDomain.length > 0) {
       await supabase
