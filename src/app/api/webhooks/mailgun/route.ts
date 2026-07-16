@@ -34,14 +34,32 @@ export async function POST(request: Request) {
     .single()
 
   if (!emailRecord) {
-    // Warmup email — no record in `emails` table. For permanent failures,
-    // blacklist the recipient so no future sends target this address.
-    if ((event === 'permanent_fail' || event === 'bounced') && recipient) {
-      await supabase
+    // Séquence ou warmup — pas de record dans `emails`.
+    // Pour bounces et complaints, blacklister le contact et stopper ses enrollments.
+    const isBounce    = event === 'permanent_fail' || event === 'bounced'
+    const isComplaint = event === 'complained'
+
+    if ((isBounce || isComplaint) && recipient) {
+      const now = new Date().toISOString()
+
+      const { data: contact } = await supabase
         .from('contacts')
-        .update({ unsubscribed: true, unsubscribed_at: new Date().toISOString() })
+        .select('id')
+        .eq('email', recipient)
+        .maybeSingle()
+
+      await supabase.from('contacts')
+        .update({ unsubscribed: true, unsubscribed_at: now })
         .eq('email', recipient)
         .eq('unsubscribed', false)
+
+      if (contact) {
+        // Arrêter immédiatement les enrollments actifs du contact
+        await supabase.from('sequence_enrollments')
+          .update({ status: 'completed', completed_at: now })
+          .eq('contact_id', contact.id)
+          .eq('status', 'active')
+      }
     }
     return NextResponse.json({ ok: true })
   }

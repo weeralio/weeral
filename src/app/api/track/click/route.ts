@@ -12,17 +12,14 @@ export async function GET(request: Request) {
   // Always redirect — tracking is best-effort
   const destination = rawUrl ? decodeURIComponent(rawUrl) : '/'
 
-  if (!cid || !cmpid || !token || !rawUrl) {
-    return NextResponse.redirect(destination)
-  }
-
-  if (!verifyTrackingToken(`${cid}:${cmpid}`, token)) {
-    return NextResponse.redirect(destination)
-  }
+  if (!cid || !cmpid || !token || !rawUrl) return NextResponse.redirect(destination)
+  if (!verifyTrackingToken(`${cid}:${cmpid}`, token)) return NextResponse.redirect(destination)
 
   try {
     const supabase = createServiceClient()
+    const clickedAt = new Date().toISOString()
 
+    // Campagnes classiques : mise à jour de la table emails
     const { data: rows } = await supabase
       .from('emails')
       .select('id, status')
@@ -35,8 +32,27 @@ export async function GET(request: Request) {
     if (email) {
       await supabase
         .from('emails')
-        .update({ status: 'clicked', clicked_at: new Date().toISOString() })
+        .update({ status: 'clicked', clicked_at: clickedAt })
         .eq('id', email.id)
+    }
+
+    // Séquences : cmpid = enrollment.id — mise à jour du dernier envoi de séquence
+    if (!email) {
+      const { data: seqRows } = await supabase
+        .from('sequence_sends')
+        .select('id')
+        .eq('enrollment_id', cmpid)
+        .is('clicked_at', null)
+        .order('sent_at', { ascending: false })
+        .limit(1)
+
+      const seqSend = seqRows?.[0]
+      if (seqSend) {
+        await supabase
+          .from('sequence_sends')
+          .update({ clicked_at: clickedAt })
+          .eq('id', seqSend.id)
+      }
     }
   } catch {
     // Never block redirect on DB errors

@@ -3,7 +3,7 @@ import { sendViaProvider } from '@/lib/mailer'
 import { unsubscribeUrl } from '@/lib/tokens'
 import { NextResponse } from 'next/server'
 
-// Appelé toutes les heures par Trigger.dev (même schedule que /api/cron/send)
+// Appelé toutes les heures par Vercel cron (vercel.json)
 // Header requis : Authorization: Bearer <CRON_SECRET>
 export async function POST(request: Request) {
   const auth = request.headers.get('authorization')
@@ -14,7 +14,6 @@ export async function POST(request: Request) {
   const supabase = createServiceClient()
   const now = new Date().toISOString()
 
-  // Fetch enrollments due for sending
   const { data: dueEnrollments } = await supabase
     .from('sequence_enrollments')
     .select(`
@@ -32,31 +31,29 @@ export async function POST(request: Request) {
 
   let totalSent = 0
   const domainSentAdded: Record<string, number> = {}
-  // Cache per-user provider to avoid repeated DB queries
   const userProviders: Record<string, string | null> = {}
 
   for (const enrollment of dueEnrollments) {
     const sequence = Array.isArray(enrollment.sequences) ? enrollment.sequences[0] : enrollment.sequences
-    const contact = Array.isArray(enrollment.contacts) ? enrollment.contacts[0] : enrollment.contacts
+    const contact  = Array.isArray(enrollment.contacts)  ? enrollment.contacts[0]  : enrollment.contacts
     const identity = Array.isArray(enrollment.sender_identities) ? enrollment.sender_identities[0] : enrollment.sender_identities
-    const domain = Array.isArray(identity?.domains) ? identity.domains[0] : identity?.domains
+    const domain   = Array.isArray(identity?.domains) ? identity.domains[0] : identity?.domains
 
     if (!contact?.email || !identity?.email || !sequence?.user_id) continue
+
     if (contact.unsubscribed) {
-      await supabase
-        .from('sequence_enrollments')
+      await supabase.from('sequence_enrollments')
         .update({ status: 'completed', completed_at: now })
         .eq('id', enrollment.id)
       continue
     }
+
     if (!domain || domain.status === 'blocked') continue
 
-    // Domain daily limit check — account for sends already done this run
     const alreadySentThisRun = domainSentAdded[domain.id] ?? 0
     const remaining = (domain.daily_limit ?? 100) - (domain.sent_today ?? 0) - alreadySentThisRun
     if (remaining <= 0) continue
 
-    // Get the current step
     const { data: step } = await supabase
       .from('sequence_steps')
       .select('*')
@@ -65,15 +62,14 @@ export async function POST(request: Request) {
       .single()
 
     if (!step) {
-      // No more steps — mark as completed
-      await supabase
-        .from('sequence_enrollments')
+      await supabase.from('sequence_enrollments')
         .update({ status: 'completed', completed_at: now })
         .eq('id', enrollment.id)
       continue
     }
 
-    // Check send_condition
+    // ── Vérification des conditions d'envoi ────────────────────────────────────
+
     if (step.send_condition === 'no_reply') {
       const { count } = await supabase
         .from('sequence_sends')
@@ -81,19 +77,48 @@ export async function POST(request: Request) {
         .eq('enrollment_id', enrollment.id)
         .eq('status', 'replied')
       if ((count ?? 0) > 0) {
-        // Contact replied — stop sequence
-        await supabase
-          .from('sequence_enrollments')
+        await supabase.from('sequence_enrollments')
           .update({ status: 'replied', completed_at: now })
           .eq('id', enrollment.id)
         continue
       }
     }
 
-    const html = interpolate(step.body_html, contact)
+    if (step.send_condition === 'no_open') {
+      const { count } = await supabase
+        .from('sequence_sends')
+        .select('*', { count: 'exact', head: true })
+        .eq('enrollment_id', enrollment.id)
+        .not('opened_at', 'is', null)
+      if ((count ?? 0) > 0) {
+        // Contact a ouvert un email → il est engagé, on arrête la relance
+        await supabase.from('sequence_enrollments')
+          .update({ status: 'completed', completed_at: now })
+          .eq('id', enrollment.id)
+        continue
+      }
+    }
+
+    if (step.send_condition === 'no_click') {
+      const { count } = await supabase
+        .from('sequence_sends')
+        .select('*', { count: 'exact', head: true })
+        .eq('enrollment_id', enrollment.id)
+        .not('clicked_at', 'is', null)
+      if ((count ?? 0) > 0) {
+        // Contact a cliqué → il est engagé, on arrête la relance
+        await supabase.from('sequence_enrollments')
+          .update({ status: 'completed', completed_at: now })
+          .eq('id', enrollment.id)
+        continue
+      }
+    }
+
+    // ── Envoi ──────────────────────────────────────────────────────────────────
+
+    const html    = interpolate(step.body_html, contact)
     const subject = interpolate(step.subject, contact)
 
-    // Resolve provider for this user (cached) — only check for Mailgun
     if (!(sequence.user_id in userProviders)) {
       const { data: cfg } = await supabase
         .from('provider_configs')
@@ -111,17 +136,18 @@ export async function POST(request: Request) {
 
     try {
       await sendViaProvider(sequence.user_id, {
-        from: identity.email,
+        from:     identity.email,
         fromName: identity.display_name ?? identity.email,
-        to: contact.email,
+        to:       contact.email,
         replyTo,
         subject,
-        htmlBody: html,
-        textBody: step.body_text ? interpolate(step.body_text, contact) : undefined,
+        htmlBody:       html,
+        textBody:       step.body_text ? interpolate(step.body_text, contact) : undefined,
         unsubscribeUrl: unsubscribeUrl(enrollment.contact_id, enrollment.sequence_id),
+        // enrollment.id comme campaignId pour le tracking open/click
+        tracking: { contactId: enrollment.contact_id, campaignId: enrollment.id },
       })
 
-      // Get next step to schedule it
       const { data: nextStep } = await supabase
         .from('sequence_steps')
         .select('step_number, delay_days')
@@ -139,56 +165,45 @@ export async function POST(request: Request) {
         nextSendAt = dt.toISOString()
         nextStatus = 'active'
       } else {
-        nextSendAt = null
-        nextStatus = 'completed'
+        nextSendAt  = null
+        nextStatus  = 'completed'
         completedAt = now
       }
 
-      const today = new Date().toISOString().split('T')[0]
-
       await Promise.all([
-        // Log the send
         supabase.from('sequence_sends').insert({
           enrollment_id: enrollment.id,
-          step_id: step.id,
-          step_number: step.step_number,
-          status: 'sent',
+          step_id:       step.id,
+          step_number:   step.step_number,
+          status:        'sent',
         }),
-        // Advance enrollment
         supabase.from('sequence_enrollments').update({
           current_step: enrollment.current_step + 1,
-          status: nextStatus,
+          status:       nextStatus,
           next_send_at: nextSendAt,
           completed_at: completedAt,
         }).eq('id', enrollment.id),
       ])
-      // Analytics — non-blocking
-      void supabase.rpc('increment_warmup_log', { p_domain_id: domain.id, p_date: today })
 
       domainSentAdded[domain.id] = (domainSentAdded[domain.id] ?? 0) + 1
       totalSent++
     } catch (err) {
-      console.error(`[sequences cron] Failed to send enrollment ${enrollment.id}:`, err)
+      console.error(`[sequences cron] Failed enrollment ${enrollment.id}:`, err)
     }
   }
 
-  // Update sent_today per domain once at the end
+  // Mise à jour sent_today par domaine
   await Promise.all(
     Object.entries(domainSentAdded).map(([domainId, added]) => {
       const enrollment = dueEnrollments.find(e => {
         const id = Array.isArray(e.sender_identities) ? e.sender_identities[0] : e.sender_identities
-        const d = Array.isArray(id?.domains) ? id.domains[0] : id?.domains
+        const d  = Array.isArray(id?.domains) ? id.domains[0] : id?.domains
         return d?.id === domainId
       })
-      const identity = enrollment
-        ? (Array.isArray(enrollment.sender_identities) ? enrollment.sender_identities[0] : enrollment.sender_identities)
-        : null
-      const domainData = identity
-        ? (Array.isArray(identity.domains) ? identity.domains[0] : identity.domains)
-        : null
-      const originalSentToday = domainData?.sent_today ?? 0
+      const identity   = enrollment ? (Array.isArray(enrollment.sender_identities) ? enrollment.sender_identities[0] : enrollment.sender_identities) : null
+      const domainData = identity   ? (Array.isArray(identity.domains) ? identity.domains[0] : identity.domains) : null
       return supabase.from('domains')
-        .update({ sent_today: originalSentToday + added })
+        .update({ sent_today: (domainData?.sent_today ?? 0) + added })
         .eq('id', domainId)
     })
   )
@@ -204,6 +219,6 @@ function interpolate(
 ): string {
   return template
     .replace(/\{\{first_name\}\}/g, contact.first_name ?? '')
-    .replace(/\{\{last_name\}\}/g, contact.last_name ?? '')
-    .replace(/\{\{company\}\}/g, contact.company ?? '')
+    .replace(/\{\{last_name\}\}/g,  contact.last_name  ?? '')
+    .replace(/\{\{company\}\}/g,    contact.company    ?? '')
 }

@@ -24,8 +24,9 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createServiceClient()
+    const openedAt = new Date().toISOString()
 
-    // Mark email as opened (only if not already bounced/complained)
+    // Campagnes classiques : mise à jour de la table emails
     const { data: rows } = await supabase
       .from('emails')
       .select('id, status')
@@ -38,8 +39,27 @@ export async function GET(request: Request) {
     if (email) {
       await supabase
         .from('emails')
-        .update({ status: 'opened', opened_at: new Date().toISOString() })
+        .update({ status: 'opened', opened_at: openedAt })
         .eq('id', email.id)
+    }
+
+    // Séquences : cmpid = enrollment.id — mise à jour du dernier envoi de séquence
+    if (!email) {
+      const { data: seqRows } = await supabase
+        .from('sequence_sends')
+        .select('id')
+        .eq('enrollment_id', cmpid)
+        .is('opened_at', null)
+        .order('sent_at', { ascending: false })
+        .limit(1)
+
+      const seqSend = seqRows?.[0]
+      if (seqSend) {
+        await supabase
+          .from('sequence_sends')
+          .update({ opened_at: openedAt })
+          .eq('id', seqSend.id)
+      }
     }
   } catch {
     // Never block pixel delivery on DB errors
