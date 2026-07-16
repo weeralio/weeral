@@ -18,7 +18,7 @@ export default async function NewSequencePage() {
           Séquences
         </Link>
         <h1 className="text-2xl font-bold text-white">Nouvelle séquence</h1>
-        <p className="text-sm text-[#475569] mt-1">L&apos;IA génère toute la séquence — tu valides et ajustes chaque étape.</p>
+        <p className="text-sm text-[#475569] mt-1">Rédige toi-même tes emails ou laisse l&apos;IA générer la séquence.</p>
       </div>
       <SequenceGenerator />
     </div>

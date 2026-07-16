@@ -3,7 +3,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { anthropic, MODELS } from '@/lib/anthropic'
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
 
 // ─── AI sequence generation ───────────────────────────────────────────────────
 
@@ -113,7 +112,7 @@ export async function createSequence(
   if (stepsError) return { error: stepsError.message }
 
   revalidatePath('/dashboard/sequences')
-  redirect(`/dashboard/sequences/${seq.id}`)
+  return { id: seq.id }
 }
 
 // ─── Update a single step ─────────────────────────────────────────────────────

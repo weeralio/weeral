@@ -38,7 +38,7 @@ export default async function SequencesPage() {
         <div>
           <h1 className="text-2xl font-bold text-white">Séquences</h1>
           <p className="text-sm text-[#475569] mt-1">
-            {sequences?.length ?? 0} séquence{(sequences?.length ?? 0) !== 1 ? 's' : ''} · L&apos;IA génère et guide chaque étape
+            {sequences?.length ?? 0} séquence{(sequences?.length ?? 0) !== 1 ? 's' : ''}
           </p>
         </div>
         <Link href="/dashboard/sequences/nouveau" className={cn(buttonVariants({ variant: 'default' }), 'shrink-0')}>
@@ -56,7 +56,7 @@ export default async function SequencesPage() {
             </div>
             <p className="text-[#94a3b8] font-semibold mb-1">Aucune séquence</p>
             <p className="text-sm text-[#475569] mb-6 max-w-xs mx-auto">
-              L&apos;IA génère une séquence complète à partir de ton objectif — tu n&apos;as qu&apos;à valider.
+              Rédige ta première séquence d&apos;emails ou laisse l&apos;IA la générer pour toi.
             </p>
             <Link href="/dashboard/sequences/nouveau" className={cn(buttonVariants({ variant: 'default' }))}>
               Créer ma première séquence →
