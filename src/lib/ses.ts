@@ -69,12 +69,7 @@ export async function sendEmail(ses: SESClient, params: {
   textBody?: string
   unsubscribeUrl?: string
 }): Promise<string> {
-  const htmlWithFooter = params.unsubscribeUrl
-    ? `${params.htmlBody}<br><br><p style="font-size:11px;color:#999;">
-        <a href="${params.unsubscribeUrl}" style="color:#999;">Se désinscrire</a>
-      </p>`
-    : params.htmlBody
-
+  // htmlBody is already prepared by mailer.ts (footer + tracking pixel injected there)
   const textWithFooter = params.unsubscribeUrl && params.textBody
     ? `${params.textBody}\n\n---\nSe désinscrire : ${params.unsubscribeUrl}`
     : params.textBody
@@ -86,7 +81,7 @@ export async function sendEmail(ses: SESClient, params: {
     Message: {
       Subject: { Data: params.subject, Charset: 'UTF-8' },
       Body: {
-        Html: { Data: htmlWithFooter, Charset: 'UTF-8' },
+        Html: { Data: params.htmlBody, Charset: 'UTF-8' },
         ...(textWithFooter && { Text: { Data: textWithFooter, Charset: 'UTF-8' } }),
       },
     },
