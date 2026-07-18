@@ -156,7 +156,7 @@ async function sendViaMailgun(apiKey: string, params: MailParams): Promise<strin
   // Try US region first, fall back to EU
   for (const base of ['https://api.mailgun.net', 'https://api.eu.mailgun.net']) {
     const res = await fetch(`${base}/v3/${domain}/messages`, { method: 'POST', headers, body })
-    if (res.status === 401 && base === 'https://api.mailgun.net') continue // try EU
+    if ((res.status === 401 || res.status === 404) && base === 'https://api.mailgun.net') continue // try EU (domain may be EU-only → 404 on US)
     if (!res.ok) {
       const err = await res.text()
       throw new Error(`Mailgun error ${res.status}: ${err} (domain: ${domain}, region: ${base.includes('.eu.') ? 'EU' : 'US'})`)

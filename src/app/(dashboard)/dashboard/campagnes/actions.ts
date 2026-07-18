@@ -160,6 +160,7 @@ export async function triggerSend(campaignId: string): Promise<{ sent?: number; 
   }
 
   let sent = 0
+  let firstError: string | null = null
   const today = new Date().toISOString().split('T')[0]
 
   for (const cc of pendingContacts) {
@@ -196,10 +197,8 @@ export async function triggerSend(campaignId: string): Promise<{ sent?: number; 
       void supabase.rpc('increment_warmup_log', { p_domain_id: domain.id, p_date: today })
       sent++
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erreur inconnue'
       await supabase.from('campaign_contacts').update({ status: 'failed' }).eq('id', cc.id)
-      revalidatePath(`/dashboard/campagnes/${campaignId}`)
-      return { error: `Échec envoi à ${contact.email} : ${msg}` }
+      if (!firstError) firstError = err instanceof Error ? err.message : 'Erreur inconnue'
     }
   }
 
@@ -211,7 +210,7 @@ export async function triggerSend(campaignId: string): Promise<{ sent?: number; 
   }
 
   revalidatePath(`/dashboard/campagnes/${campaignId}`)
-  return { sent }
+  return firstError ? { sent, error: firstError } : { sent }
 }
 
 function interpolate(template: string, contact: { first_name?: string | null; last_name?: string | null; company?: string | null }): string {
