@@ -8,6 +8,12 @@ export default async function NewSequencePage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: identities } = await supabase
+    .from('sender_identities')
+    .select('id, email, display_name')
+    .eq('user_id', user.id)
+    .order('email')
+
   return (
     <div className="max-w-2xl space-y-6">
       <div>
@@ -20,7 +26,7 @@ export default async function NewSequencePage() {
         <h1 className="text-2xl font-bold text-white">Nouvelle séquence</h1>
         <p className="text-sm text-[#475569] mt-1">Rédige toi-même tes emails ou laisse l&apos;IA générer la séquence.</p>
       </div>
-      <SequenceGenerator />
+      <SequenceGenerator identities={identities ?? []} />
     </div>
   )
 }

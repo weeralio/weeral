@@ -83,6 +83,7 @@ export async function createSequence(
   goal: string,
   description: string,
   steps: GeneratedStep[],
+  senderIdentityId?: string,
 ): Promise<{ error?: string; id?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -90,7 +91,14 @@ export async function createSequence(
 
   const { data: seq, error } = await supabase
     .from('sequences')
-    .insert({ user_id: user.id, name, goal: goal || null, description: description || null, steps_count: steps.length })
+    .insert({
+      user_id: user.id,
+      name,
+      goal: goal || null,
+      description: description || null,
+      steps_count: steps.length,
+      sender_identity_id: senderIdentityId || null,
+    })
     .select('id')
     .single()
 
@@ -113,6 +121,27 @@ export async function createSequence(
 
   revalidatePath('/dashboard/sequences')
   return { id: seq.id }
+}
+
+// ─── Update sequence sender identity ─────────────────────────────────────────
+
+export async function updateSequenceSender(
+  sequenceId: string,
+  senderIdentityId: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { error } = await supabase
+    .from('sequences')
+    .update({ sender_identity_id: senderIdentityId })
+    .eq('id', sequenceId)
+    .eq('user_id', user.id)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/dashboard/sequences/${sequenceId}`)
+  return {}
 }
 
 // ─── Update a single step ─────────────────────────────────────────────────────

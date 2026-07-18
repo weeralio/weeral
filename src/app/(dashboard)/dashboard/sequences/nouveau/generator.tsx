@@ -6,6 +6,8 @@ import { generateSequenceWithAI, createSequence, type GeneratedStep } from '../a
 import { Card, CardContent } from '@/components/ui/card'
 import EmailDesigner from '@/components/email-designer/EmailDesigner'
 
+interface Identity { id: string; email: string; display_name: string | null }
+
 const TONES = [
   { value: 'professionnel', label: 'Professionnel' },
   { value: 'décontracté', label: 'Décontracté' },
@@ -34,11 +36,12 @@ function makeEmptyStep(stepNumber: number): GeneratedStep {
   }
 }
 
-export default function SequenceGenerator() {
+export default function SequenceGenerator({ identities }: { identities: Identity[] }) {
   const router = useRouter()
 
   const [mode, setMode] = useState<'ai' | 'manual'>('ai')
   const [name, setName] = useState('')
+  const [senderIdentityId, setSenderIdentityId] = useState(identities[0]?.id ?? '')
   const [goal, setGoal] = useState('')
   const [audience, setAudience] = useState('')
   const [tone, setTone] = useState('professionnel')
@@ -93,7 +96,7 @@ export default function SequenceGenerator() {
     if (!name.trim() || steps.length === 0) return
     setError('')
     startSave(async () => {
-      const res = await createSequence(name, goal, description, steps)
+      const res = await createSequence(name, goal, description, steps, senderIdentityId || undefined)
       if (res.error) {
         setError(res.error)
       } else if (res.id) {
@@ -136,6 +139,18 @@ export default function SequenceGenerator() {
                 placeholder="Ex: Prospection DRH Q2"
                 className="w-full px-3 py-2.5 rounded-xl bg-[#0a0a18] border border-[#1e1e3f] text-white text-sm placeholder-[#3b3b6f] focus:outline-none focus:border-violet-500/50 transition-colors"
               />
+            </div>
+
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-xs text-[#475569]">Adresse d&apos;envoi *</label>
+              {identities.length === 0 ? (
+                <p className="text-xs text-[#475569]">
+                  Aucune adresse configurée.{' '}
+                  <a href="/dashboard/domaines" className="text-violet-400 hover:text-violet-300 transition-colors">Ajouter un domaine →</a>
+                </p>
+              ) : (
+                <IdentityDropdown identities={identities} value={senderIdentityId} onChange={setSenderIdentityId} />
+              )}
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">
@@ -383,6 +398,43 @@ export default function SequenceGenerator() {
             + Ajouter la première étape
           </button>
           {!name.trim() && <p className="text-xs text-[#3b3b6f] text-center mt-2">Remplis d&apos;abord le nom de la séquence</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function IdentityDropdown({ identities, value, onChange }: { identities: Identity[]; value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const selected = identities.find(i => i.id === value)
+  const label = selected
+    ? (selected.display_name ? `${selected.display_name} <${selected.email}>` : selected.email)
+    : 'Choisir…'
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`w-full flex items-center justify-between px-3 py-2.5 bg-[#0a0a18] border rounded-xl text-sm transition-colors ${open ? 'border-violet-500/50' : 'border-[#1e1e3f] hover:border-[#3b3b6f]'} text-white`}
+      >
+        <span className="truncate">{label}</span>
+        <svg className={`w-4 h-4 text-[#475569] shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-10 mt-1 w-full bg-[#0d0d1c] border border-[#1e1e3f] rounded-xl shadow-xl overflow-hidden">
+          {identities.map(i => (
+            <button
+              key={i.id}
+              type="button"
+              onClick={() => { onChange(i.id); setOpen(false) }}
+              className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${value === i.id ? 'bg-violet-950/30 text-violet-300' : 'text-[#94a3b8] hover:bg-[#111128] hover:text-white'}`}
+            >
+              {i.display_name ? `${i.display_name} <${i.email}>` : i.email}
+            </button>
+          ))}
         </div>
       )}
     </div>

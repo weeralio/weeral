@@ -90,7 +90,13 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
           <CardDescription>Sélectionne l&apos;adresse d&apos;envoi et lance la séquence sur tous tes contacts actifs.</CardDescription>
         </CardHeader>
         <CardContent>
-          <EnrollForm sequenceId={id} identities={identities ?? []} lists={lists} totalCount={totalCount ?? 0} />
+          <EnrollForm
+            sequenceId={id}
+            identities={identities ?? []}
+            lists={lists}
+            totalCount={totalCount ?? 0}
+            defaultIdentityId={sequence.sender_identity_id ?? ''}
+          />
         </CardContent>
       </Card>
 

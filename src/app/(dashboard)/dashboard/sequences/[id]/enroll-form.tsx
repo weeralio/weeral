@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { enrollContacts } from '../actions'
+import { enrollContacts, updateSequenceSender } from '../actions'
 import ListPicker, { type ContactList } from '@/components/dashboard/list-picker'
 
 interface Identity { id: string; email: string; display_name: string | null }
@@ -11,10 +11,11 @@ interface Props {
   identities: Identity[]
   lists: ContactList[]
   totalCount: number
+  defaultIdentityId: string
 }
 
-export default function EnrollForm({ sequenceId, identities, lists, totalCount }: Props) {
-  const [identityId, setIdentityId] = useState(identities[0]?.id ?? '')
+export default function EnrollForm({ sequenceId, identities, lists, totalCount, defaultIdentityId }: Props) {
+  const [identityId, setIdentityId] = useState(defaultIdentityId || identities[0]?.id || '')
   const [listIds, setListIds]        = useState<string[]>([])
   const [result, setResult]          = useState<string | null>(null)
   const [error, setError]            = useState('')
@@ -29,6 +30,7 @@ export default function EnrollForm({ sequenceId, identities, lists, totalCount }
     setError('')
     setResult(null)
     start(async () => {
+      await updateSequenceSender(sequenceId, identityId)
       const res = await enrollContacts(sequenceId, listIds, identityId)
       if (res.error) setError(res.error)
       else setResult(`${res.enrolled ?? 0} contacts inscrits`)
