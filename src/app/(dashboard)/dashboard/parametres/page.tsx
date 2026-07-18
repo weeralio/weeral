@@ -64,8 +64,9 @@ export default async function ParametresPage() {
 
       {/* Abonnement */}
       {(() => {
-        const isActive = subscription && ['active', 'trialing', 'cancel_at_period_end'].includes(subscription.status)
-        if (!isActive) {
+        const KNOWN_STATUSES = ['active', 'trialing', 'cancel_at_period_end', 'past_due', 'unpaid', 'incomplete_expired']
+        const hasSubscription = subscription && KNOWN_STATUSES.includes(subscription.status)
+        if (!hasSubscription) {
           return (
             <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-6">
               <h2 className="text-base font-semibold text-white mb-1">Abonnement</h2>

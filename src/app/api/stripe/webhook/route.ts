@@ -88,9 +88,8 @@ async function upsertSubscription(sub: Stripe.Subscription) {
     if (foundId) resolvedUserId = foundId
   }
 
-  const periodEnd = sub.items.data[0]?.billing_thresholds
-    ? null
-    : new Date((sub as unknown as { current_period_end: number }).current_period_end * 1000).toISOString()
+  const rawPeriodEnd = (sub as unknown as { current_period_end: number }).current_period_end
+  const periodEnd = rawPeriodEnd ? new Date(rawPeriodEnd * 1000).toISOString() : null
 
   await getAdminSupabase().from('subscriptions').upsert({
     stripe_customer_id:     customerId,

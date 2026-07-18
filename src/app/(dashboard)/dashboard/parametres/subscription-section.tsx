@@ -35,17 +35,41 @@ export default function SubscriptionSection({ plan, billing, status, periodEnd, 
     }
   }
 
-  const isCanceling = status === 'cancel_at_period_end'
+  const isCanceling  = status === 'cancel_at_period_end'
+  const isPaymentDue = ['past_due', 'unpaid', 'incomplete_expired'].includes(status)
   const endDate = periodEnd
     ? new Date(periodEnd).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
     : null
 
+  function badgeProps() {
+    if (isPaymentDue) return { label: 'Paiement en échec', className: 'bg-red-950/40 text-red-400 border-red-800/40' }
+    if (isCanceling)  return { label: 'Résiliation programmée', className: 'bg-amber-950/40 text-amber-400 border-amber-800/40' }
+    return { label: 'Actif', className: 'bg-emerald-950/40 text-emerald-400 border-emerald-800/40' }
+  }
+
+  const badge = badgeProps()
+
   return (
-    <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-6 space-y-5">
+    <div className={`bg-[#0d0d1c] rounded-2xl p-6 space-y-5 ${isPaymentDue ? 'border border-red-700/50' : 'border border-[#1e1e3f]'}`}>
       <h2 className="text-base font-semibold text-white">Abonnement</h2>
 
+      {/* Payment failure alert */}
+      {isPaymentDue && (
+        <div className="flex items-start gap-3 bg-red-950/30 border border-red-700/40 rounded-xl px-4 py-3">
+          <svg className="w-4 h-4 text-red-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <div>
+            <p className="text-sm font-semibold text-red-300">Échec de paiement</p>
+            <p className="text-xs text-red-400/80 mt-0.5">
+              La tentative de débit de votre moyen de paiement a échoué. Mettez à jour votre carte via le portail Stripe pour rétablir l&apos;accès.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Plan info */}
-      <div className="bg-[#07070f] border border-[#1e1e3f] rounded-xl p-4 flex items-center justify-between">
+      <div className={`bg-[#07070f] rounded-xl p-4 flex items-center justify-between ${isPaymentDue ? 'border border-red-800/30' : 'border border-[#1e1e3f]'}`}>
         <div>
           <p className="text-sm font-semibold text-white">{planName}</p>
           <p className="text-xs text-[#475569] mt-0.5">
@@ -53,42 +77,42 @@ export default function SubscriptionSection({ plan, billing, status, periodEnd, 
             {endDate && (
               isCanceling
                 ? ` · Accès jusqu'au ${endDate}`
+                : isPaymentDue
+                ? ` · Période se terminant le ${endDate}`
                 : ` · Renouvellement le ${endDate}`
             )}
           </p>
         </div>
-        <span className={`text-xs px-2.5 py-1 rounded-full font-medium border ${
-          isCanceling
-            ? 'bg-amber-950/40 text-amber-400 border-amber-800/40'
-            : 'bg-emerald-950/40 text-emerald-400 border-emerald-800/40'
-        }`}>
-          {isCanceling ? 'Résiliation programmée' : 'Actif'}
+        <span className={`text-xs px-2.5 py-1 rounded-full font-medium border ${badge.className}`}>
+          {badge.label}
         </span>
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {plan !== 'agency' && !isCanceling && (
-          <Link
-            href="/pricing"
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white text-sm font-semibold hover:from-[#6d28d9] hover:to-[#7c3aed] transition-all"
-          >
-            Changer de plan
-          </Link>
-        )}
+      {!isPaymentDue && (
+        <div className="flex items-center gap-3 flex-wrap">
+          {plan !== 'agency' && !isCanceling && (
+            <Link
+              href="/pricing"
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white text-sm font-semibold hover:from-[#6d28d9] hover:to-[#7c3aed] transition-all"
+            >
+              Changer de plan
+            </Link>
+          )}
 
-        {!isCanceling && !confirming && (
-          <button
-            onClick={() => setConfirming(true)}
-            className="px-4 py-2 rounded-xl border border-[#1e1e3f] text-sm text-[#475569] hover:border-red-800/50 hover:text-red-400 transition-all"
-          >
-            Résilier l&apos;abonnement
-          </button>
-        )}
-      </div>
+          {!isCanceling && !confirming && (
+            <button
+              onClick={() => setConfirming(true)}
+              className="px-4 py-2 rounded-xl border border-[#1e1e3f] text-sm text-[#475569] hover:border-red-800/50 hover:text-red-400 transition-all"
+            >
+              Résilier l&apos;abonnement
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Confirm cancel */}
-      {confirming && (
+      {confirming && !isPaymentDue && (
         <div className="bg-red-950/20 border border-red-800/30 rounded-xl p-4 space-y-3">
           <p className="text-sm text-[#94a3b8]">
             Tu garderas l&apos;accès jusqu&apos;à la fin de la période en cours
