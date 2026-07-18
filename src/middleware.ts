@@ -1,6 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const PAYMENT_BLOCKED_STATUSES = ['past_due', 'unpaid', 'incomplete_expired']
+const PAYMENT_PAGE = '/dashboard/parametres'
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -31,10 +34,9 @@ export async function middleware(request: NextRequest) {
     // Supabase unreachable — allow request through, page-level auth will handle it
   }
 
-  const isAuthPage = ['/login', '/signup'].some(p =>
-    request.nextUrl.pathname.startsWith(p)
-  )
-  const isProtectedPage = request.nextUrl.pathname.startsWith('/dashboard')
+  const { pathname } = request.nextUrl
+  const isAuthPage      = ['/login', '/signup'].some(p => pathname.startsWith(p))
+  const isProtectedPage = pathname.startsWith('/dashboard')
 
   if (!user && isProtectedPage) {
     return NextResponse.redirect(new URL('/login', request.url))
@@ -42,6 +44,23 @@ export async function middleware(request: NextRequest) {
 
   if (user && isAuthPage) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  // Block dashboard features when payment has failed, except on the settings page
+  if (user && isProtectedPage && !pathname.startsWith(PAYMENT_PAGE)) {
+    try {
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select('status')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (sub && PAYMENT_BLOCKED_STATUSES.includes(sub.status)) {
+        return NextResponse.redirect(new URL(PAYMENT_PAGE, request.url))
+      }
+    } catch {
+      // If check fails, allow through — better UX than a false block
+    }
   }
 
   return supabaseResponse

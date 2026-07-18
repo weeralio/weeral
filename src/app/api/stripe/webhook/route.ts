@@ -83,9 +83,9 @@ async function upsertSubscription(sub: Stripe.Subscription) {
   // Resolve user_id from email if not in metadata
   let resolvedUserId = userId || null
   if (!resolvedUserId && email) {
-    const { data: users } = await getAdminSupabase().auth.admin.listUsers()
-    const match = users?.users?.find(u => u.email === email)
-    if (match) resolvedUserId = match.id
+    const { data: foundId } = await getAdminSupabase()
+      .rpc('get_user_id_by_email', { user_email: email })
+    if (foundId) resolvedUserId = foundId
   }
 
   const periodEnd = sub.items.data[0]?.billing_thresholds
