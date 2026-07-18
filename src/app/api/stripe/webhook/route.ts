@@ -91,6 +91,9 @@ async function upsertSubscription(sub: Stripe.Subscription) {
   const rawPeriodEnd = (sub as unknown as { current_period_end: number }).current_period_end
   const periodEnd = rawPeriodEnd ? new Date(rawPeriodEnd * 1000).toISOString() : null
 
+  // Preserve our cancel_at_period_end status: Stripe keeps sub.status='active' even after cancellation
+  const status = sub.cancel_at_period_end ? 'cancel_at_period_end' : sub.status
+
   await getAdminSupabase().from('subscriptions').upsert({
     stripe_customer_id:     customerId,
     stripe_subscription_id: sub.id,
@@ -98,7 +101,7 @@ async function upsertSubscription(sub: Stripe.Subscription) {
     email,
     plan,
     billing,
-    status:                 sub.status,
+    status,
     current_period_end:     periodEnd,
     updated_at:             new Date().toISOString(),
   }, { onConflict: 'stripe_subscription_id' })
