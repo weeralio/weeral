@@ -23,7 +23,7 @@ export async function getUserLimits(userId: string): Promise<UserLimits> {
   const [
     { data: sub },
     { count: contactsUsed },
-    { data: logs },
+    { data: userDomains },
   ] = await Promise.all([
     admin
       .from('subscriptions')
@@ -37,10 +37,17 @@ export async function getUserLimits(userId: string): Promise<UserLimits> {
       .eq('user_id', userId)
       .eq('unsubscribed', false),
     supabase
-      .from('warmup_logs')
-      .select('emails_sent')
+      .from('domains')
+      .select('id')
       .eq('user_id', userId),
   ])
+
+  // Query warmup_logs by domain_id (warmup_logs has no user_id column)
+  // warmup_logs.emails_sent includes campaigns + warmup + sequences (all crons call increment_warmup_log)
+  const domainIds = (userDomains ?? []).map((d: { id: string }) => d.id)
+  const { data: logs } = domainIds.length > 0
+    ? await supabase.from('warmup_logs').select('emails_sent').in('domain_id', domainIds)
+    : { data: [] as Array<{ emails_sent: number }> }
 
   const isSubscribed  = !!sub
   const contacts      = contactsUsed ?? 0

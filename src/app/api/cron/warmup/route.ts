@@ -165,6 +165,7 @@ async function processWarmupSend(
         user_id:            job.userId,
         warmup_day:         job.warmupDay,
       })
+      void supabase.rpc('increment_warmup_log', { p_domain_id: job.domainId, p_date: new Date().toISOString().split('T')[0] })
 
       sent++
     } catch (err) {

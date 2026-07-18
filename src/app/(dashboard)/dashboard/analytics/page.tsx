@@ -110,8 +110,8 @@ export default async function AnalyticsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Emails envoyés (14j)', value: totalSentAll.toLocaleString(), color: 'text-violet-400' },
-          { label: 'Taux d\'ouverture', value: `${globalOpenRate.toFixed(1)}%`, color: 'text-emerald-400' },
-          { label: 'Taux de clic', value: `${globalClickRate.toFixed(1)}%`, color: 'text-blue-400' },
+          { label: 'Ouverture · campagnes', value: `${globalOpenRate.toFixed(1)}%`, color: 'text-emerald-400' },
+          { label: 'Clic · campagnes', value: `${globalClickRate.toFixed(1)}%`, color: 'text-blue-400' },
           { label: 'Bounces (14j)', value: totalBounces.toLocaleString(), color: 'text-red-400' },
         ].map(s => (
           <Card key={s.label}>

@@ -13,6 +13,7 @@ export async function POST(request: Request) {
 
   const supabase = createServiceClient()
   const now = new Date().toISOString()
+  const today = now.split('T')[0]!
 
   const { data: dueEnrollments } = await supabase
     .from('sequence_enrollments')
@@ -187,6 +188,7 @@ export async function POST(request: Request) {
 
       domainSentAdded[domain.id] = (domainSentAdded[domain.id] ?? 0) + 1
       totalSent++
+      void supabase.rpc('increment_warmup_log', { p_domain_id: domain.id, p_date: today })
     } catch (err) {
       console.error(`[sequences cron] Failed enrollment ${enrollment.id}:`, err)
     }

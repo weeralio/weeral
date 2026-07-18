@@ -28,12 +28,20 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
   ] = await Promise.all([
     supabase.from('sequences').select('*').eq('id', id).eq('user_id', user!.id).single(),
     supabase.from('sequence_steps').select('*').eq('sequence_id', id).order('step_number'),
-    supabase.from('sequence_enrollments').select('status').eq('sequence_id', id),
+    supabase.from('sequence_enrollments').select('id, status').eq('sequence_id', id),
     supabase.from('sender_identities').select('id, email, display_name').eq('user_id', user!.id),
     supabase.from('contacts').select('*', { count: 'exact', head: true }).eq('user_id', user!.id).eq('unsubscribed', false),
     supabase.from('contact_lists').select('id, name, color').eq('user_id', user!.id).order('name'),
     supabase.from('contact_list_members').select('list_id'),
   ])
+
+  const enrollmentIds = (enrollments ?? []).map(e => e.id)
+  const { data: sendStats } = enrollmentIds.length > 0
+    ? await supabase
+        .from('sequence_sends')
+        .select('status, opened_at, clicked_at')
+        .in('enrollment_id', enrollmentIds)
+    : { data: [] as Array<{ status: string; opened_at: string | null; clicked_at: string | null }> }
 
   if (!sequence) notFound()
 
@@ -50,6 +58,13 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
     total:     enrollments?.length ?? 0,
   }
 
+  const totalSends   = sendStats?.length ?? 0
+  const totalOpened  = sendStats?.filter(s => s.opened_at !== null).length ?? 0
+  const totalClicked = sendStats?.filter(s => s.clicked_at !== null).length ?? 0
+  const totalBounced = sendStats?.filter(s => s.status === 'bounced').length ?? 0
+  const openRate     = totalSends > 0 ? Math.round((totalOpened  / totalSends) * 100) : 0
+  const clickRate    = totalSends > 0 ? Math.round((totalClicked / totalSends) * 100) : 0
+
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Header */}
@@ -64,7 +79,7 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
         {sequence.description && <p className="text-sm text-[#475569] mt-1">{sequence.description}</p>}
       </div>
 
-      {/* Stats */}
+      {/* Stats enrollments */}
       <Card>
         <CardContent className="p-5">
           <div className="grid grid-cols-4 gap-4 text-center">
@@ -82,6 +97,29 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
           </div>
         </CardContent>
       </Card>
+
+      {/* Stats envois (opens / clicks) */}
+      {totalSends > 0 && (
+        <Card>
+          <CardContent className="p-5">
+            <p className="text-xs font-semibold text-[#475569] uppercase tracking-wider mb-4">Performance des envois</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+              {[
+                { label: 'Emails envoyés', value: totalSends.toLocaleString(),               color: 'text-white' },
+                { label: 'Ouvertures',     value: `${openRate}%`,                            color: 'text-emerald-400', sub: `${totalOpened} emails` },
+                { label: 'Clics',          value: `${clickRate}%`,                           color: 'text-blue-400',    sub: `${totalClicked} emails` },
+                { label: 'Bounces',        value: totalBounced.toLocaleString(),             color: totalBounced > 0 ? 'text-red-400' : 'text-[#475569]' },
+              ].map(s => (
+                <div key={s.label}>
+                  <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
+                  <p className="text-xs text-[#475569] mt-0.5">{s.label}</p>
+                  {'sub' in s && s.sub && <p className="text-[10px] text-[#3b3b6f] mt-0.5">{s.sub}</p>}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Enroll contacts */}
       <Card>

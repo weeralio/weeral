@@ -54,11 +54,55 @@ export async function POST(request: Request) {
         .eq('unsubscribed', false)
 
       if (contact) {
+        if (isBounce) {
+          // Marquer le dernier envoi de chaque séquence active comme bounced avant de clore
+          const { data: activeEnrollments } = await supabase
+            .from('sequence_enrollments')
+            .select('id')
+            .eq('contact_id', contact.id)
+            .eq('status', 'active')
+          if (activeEnrollments?.length) {
+            await Promise.all(activeEnrollments.map(async (enrollment) => {
+              const { data: latest } = await supabase
+                .from('sequence_sends')
+                .select('id')
+                .eq('enrollment_id', enrollment.id)
+                .eq('status', 'sent')
+                .order('sent_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+              if (latest) {
+                await supabase.from('sequence_sends').update({ status: 'bounced' }).eq('id', latest.id)
+              }
+            }))
+          }
+        }
         // Arrêter immédiatement les enrollments actifs du contact
         await supabase.from('sequence_enrollments')
           .update({ status: 'completed', completed_at: now })
           .eq('contact_id', contact.id)
           .eq('status', 'active')
+      }
+
+      // Mise à jour warmup_logs pour les bounces/plaintes séquences et warmup
+      const sender = eventData['sender'] as string | undefined
+      if (sender) {
+        const senderDomainName = sender.split('@')[1]
+        if (senderDomainName) {
+          const { data: domainRecord } = await supabase
+            .from('domains')
+            .select('id')
+            .eq('domain', senderDomainName)
+            .maybeSingle()
+          if (domainRecord) {
+            const webhookDate = new Date().toISOString().split('T')[0]!
+            await (isBounce
+              ? supabase.rpc('increment_warmup_log_bounces',    { p_domain_id: domainRecord.id, p_date: webhookDate })
+              : supabase.rpc('increment_warmup_log_complaints', { p_domain_id: domainRecord.id, p_date: webhookDate })
+            )
+            await updateDomainRates(supabase, domainRecord.id, webhookDate)
+          }
+        }
       }
     }
     return NextResponse.json({ ok: true })
