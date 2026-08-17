@@ -26,7 +26,7 @@ export default function NavClient({ isLoggedIn }: { isLoggedIn: boolean }) {
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group">
-          <WeeralIcon size={28} className="group-hover:shadow-[0_0_20px_rgba(139,92,246,0.5)] transition-all rounded-lg" />
+          <WeeralIcon size={28} className="transition-opacity group-hover:opacity-80" />
           <span className="font-bold text-white tracking-tight">Weeral</span>
         </Link>
 

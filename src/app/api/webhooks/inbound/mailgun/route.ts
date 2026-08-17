@@ -41,19 +41,31 @@ export async function POST(request: Request) {
   const enrollmentId = match[1]
   const supabase = createServiceClient()
 
-  // Fetch enrollment + its sequence (to get user_id for the notification)
+  // Lookup v2 : seq_enrollment (nouveau modèle)
   const { data: enrollment } = await supabase
-    .from('sequence_enrollments')
-    .select('id, status, sequence_id, contact_id, sender_identity_id, sequences(user_id, name)')
+    .from('seq_enrollment')
+    .select('id, status, seq_id, contact_id, mailbox_id, seq!seq_id(user_id, name)')
     .eq('id', enrollmentId)
     .single()
 
-  if (!enrollment || enrollment.status === 'replied') {
+  // Fallback v1 : sequence_enrollments (ancien modèle, backward compat)
+  if (!enrollment) {
+    const { data: legacyEnrollment } = await supabase
+      .from('sequence_enrollments')
+      .select('id, status, sequence_id, contact_id, sender_identity_id, sequences(user_id, name)')
+      .eq('id', enrollmentId)
+      .single()
+    if (!legacyEnrollment || legacyEnrollment.status === 'replied') return NextResponse.json({ ok: true })
+    const seq = Array.isArray(legacyEnrollment.sequences) ? legacyEnrollment.sequences[0] : legacyEnrollment.sequences
+    if (!seq?.user_id) return NextResponse.json({ ok: true })
+    await supabase.from('sequence_enrollments').update({ status: 'replied', completed_at: new Date().toISOString() }).eq('id', enrollmentId)
     return NextResponse.json({ ok: true })
   }
 
-  const sequence = Array.isArray(enrollment.sequences) ? enrollment.sequences[0] : enrollment.sequences
-  if (!sequence?.user_id) return NextResponse.json({ ok: true })
+  if (enrollment.status === 'replied') return NextResponse.json({ ok: true })
+
+  const seqMeta = Array.isArray(enrollment.seq) ? enrollment.seq[0] : enrollment.seq
+  if (!seqMeta?.user_id) return NextResponse.json({ ok: true })
 
   const { email: fromEmail, name: fromName } = parseFrom(
     formData.get('from') as string | null,
@@ -62,40 +74,29 @@ export async function POST(request: Request) {
 
   const now = new Date().toISOString()
 
-  const { data: latestSend } = await supabase
-    .from('sequence_sends')
-    .select('id')
-    .eq('enrollment_id', enrollmentId)
-    .eq('status', 'sent')
-    .order('sent_at', { ascending: false })
-    .limit(1)
-    .single()
-
   await Promise.all([
-    latestSend
-      ? supabase.from('sequence_sends').update({ status: 'replied' }).eq('id', latestSend.id)
-      : Promise.resolve(),
-    supabase.from('sequence_enrollments')
+    // Marque l'enrollment replied — le drain verra ce statut et n'enverra plus les étapes no_reply
+    supabase.from('seq_enrollment')
       .update({ status: 'replied', completed_at: now })
       .eq('id', enrollmentId),
     supabase.from('inbound_emails').insert({
-      user_id: sequence.user_id,
-      enrollment_id: enrollmentId,
-      sender_identity_id: enrollment.sender_identity_id ?? null,
-      from_email: fromEmail,
-      from_name: fromName,
-      subject: (formData.get('subject') as string | null) ?? null,
-      body_plain: (formData.get('body-plain') as string | null) ?? null,
-      body_html: (formData.get('body-html') as string | null) ?? null,
-      received_at: now,
+      user_id:            seqMeta.user_id,
+      enrollment_id:      enrollmentId,
+      sender_identity_id: enrollment.mailbox_id ?? null,
+      from_email:         fromEmail,
+      from_name:          fromName,
+      subject:            (formData.get('subject') as string | null) ?? null,
+      body_plain:         (formData.get('body-plain') as string | null) ?? null,
+      body_html:          (formData.get('body-html') as string | null) ?? null,
+      received_at:        now,
     }),
     supabase.from('ai_notifications').insert({
-      user_id: sequence.user_id,
-      type: 'success',
-      title: 'Réponse reçue',
-      message: `Un contact a répondu à ta séquence "${sequence.name}".`,
+      user_id:      seqMeta.user_id,
+      type:         'success',
+      title:        'Réponse reçue',
+      message:      `Un contact a répondu à ta séquence "${seqMeta.name}".`,
       action_label: 'Voir la boîte de réception',
-      action_href: '/dashboard/boite-reception',
+      action_href:  '/dashboard/boite-reception',
     }),
   ])
 

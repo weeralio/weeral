@@ -4,15 +4,13 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import MarketingNav from '@/components/marketing/nav'
 import MarketingFooter from '@/components/marketing/footer'
-import { FadeUp, FadeIn, Stagger, StaggerItem, ScaleIn } from '@/components/ui/motion'
+import { FadeUp, FadeIn } from '@/components/ui/motion'
 import { JsonLd } from '@/components/seo/json-ld'
 
 export const metadata: Metadata = {
   title: 'Weeral — Cold email B2B automatisé | Warmup + IA + BYOA',
-  description: 'Automatise tes campagnes de cold email B2B. Warmup progressif sur 14 jours, rédaction IA, séquences multi-étapes. Connecte Brevo, Mailgun, SendGrid ou AWS SES en 5 minutes. 100 emails offerts.',
-  alternates: {
-    canonical: 'https://weeral.io',
-  },
+  description: 'Automatise tes campagnes de cold email B2B. Warmup automatique (14 ou 40 jours), rédaction IA, séquences multi-étapes. Connecte Brevo, Mailgun, SendGrid ou AWS SES en 5 minutes. 100 emails offerts.',
+  alternates: { canonical: 'https://weeral.io' },
   openGraph: {
     url: 'https://weeral.io',
     title: 'Weeral — Cold email B2B automatisé',
@@ -21,26 +19,11 @@ export const metadata: Metadata = {
 }
 
 const FAQ_ITEMS = [
-  {
-    q: 'Quel expéditeur choisir ?',
-    a: "Pour débuter, Brevo est le plus simple (compte gratuit, clé API en 5 minutes, 300 emails/jour offerts). Pour des volumes plus importants, Mailgun ou SendGrid. AWS SES est le moins cher à gros volume mais plus complexe à configurer.",
-  },
-  {
-    q: 'Est-ce que je paie par email envoyé ?',
-    a: "Non. Tu paies un abonnement Weeral fixe (147€, 197€ ou 347€/mois) + les frais de ton expéditeur directement sur ton compte (ex: Brevo gratuit jusqu'à 9k emails/mois, AWS SES ~$0.10/1 000 emails). Aucun frais caché.",
-  },
-  {
-    q: 'Le warmup est-il vraiment automatique ?',
-    a: "Oui. Chaque jour, Weeral calcule le volume autorisé selon le jour de warmup du domaine et envoie automatiquement. Tu n'as rien à configurer une fois le domaine ajouté.",
-  },
-  {
-    q: 'Mes données et clés API sont-elles sécurisées ?',
-    a: "Toutes les clés API sont chiffrées AES-256-GCM avant stockage en base. La clé de chiffrement est en variable d'environnement serveur — même notre équipe ne peut pas les lire en clair.",
-  },
-  {
-    q: 'Puis-je tester avant de payer ?',
-    a: "Oui. 100 contacts et 100 emails sont offerts gratuitement à l'inscription, sans carte bancaire. Suffisant pour valider que Weeral correspond à ton usage.",
-  },
+  { q: 'Quel expéditeur choisir ?', a: "Pour débuter, Brevo est le plus simple (compte gratuit, clé API en 5 minutes, 300 emails/jour offerts). Pour des volumes plus importants, Mailgun ou SendGrid. AWS SES est le moins cher à gros volume mais plus complexe à configurer." },
+  { q: 'Est-ce que je paie par email envoyé ?', a: "Non. Tu paies un abonnement Weeral fixe (147€, 197€ ou 347€/mois) + les frais de ton expéditeur directement sur ton compte. Aucun frais caché, aucun frais par email côté Weeral." },
+  { q: 'Le warmup est-il vraiment automatique ?', a: "Oui. Chaque jour, Weeral calcule le volume autorisé selon le jour de warmup du domaine et envoie automatiquement. Tu n'as rien à configurer une fois le domaine ajouté." },
+  { q: 'Mes données et clés API sont-elles sécurisées ?', a: "Toutes les clés API sont chiffrées AES-256-GCM avant stockage en base. La clé de chiffrement est en variable d'environnement serveur — même notre équipe ne peut pas les lire en clair." },
+  { q: 'Puis-je tester avant de payer ?', a: "Oui. 100 contacts et 100 emails sont offerts gratuitement à l'inscription, sans carte bancaire. Suffisant pour valider que Weeral correspond à ton usage." },
 ]
 
 export default async function Home() {
@@ -57,19 +40,11 @@ export default async function Home() {
         url: 'https://weeral.io',
         applicationCategory: 'BusinessApplication',
         operatingSystem: 'Web',
-        description: 'SaaS de cold email B2B avec warmup automatique, rédaction IA et modèle BYOA. Connecte Brevo, Mailgun, SendGrid ou AWS SES.',
+        description: 'SaaS de cold email B2B avec warmup automatique, rédaction IA et modèle BYOA.',
         offers: [
           { '@type': 'Offer', name: 'Starter', price: '147', priceCurrency: 'EUR', billingDuration: 'P1M' },
           { '@type': 'Offer', name: 'Growth', price: '197', priceCurrency: 'EUR', billingDuration: 'P1M' },
           { '@type': 'Offer', name: 'Agency', price: '347', priceCurrency: 'EUR', billingDuration: 'P1M' },
-        ],
-        featureList: [
-          'Warmup email automatique',
-          'Séquences multi-étapes',
-          'Rédaction IA',
-          'Analytics temps réel',
-          'Conformité RGPD',
-          'Support Brevo, Mailgun, SendGrid, AWS SES',
         ],
       }} />
       <JsonLd data={{
@@ -81,141 +56,181 @@ export default async function Home() {
           acceptedAnswer: { '@type': 'Answer', text: a },
         })),
       }} />
+
       <MarketingNav />
-      <main className="overflow-hidden">
+      <main className="overflow-hidden bg-[#07070f]">
 
         {/* ─── HERO ─── */}
-        <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-6 pt-16 grid-pattern">
-          <div className="orb orb-purple w-[600px] h-[600px] -top-32 -left-48 opacity-50" />
-          <div className="orb orb-blue w-[500px] h-[500px] -bottom-20 -right-32 opacity-40" />
-          <div className="orb orb-pink w-[300px] h-[300px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20" />
+        <section className="relative min-h-screen flex flex-col justify-center px-6 pt-24 pb-16">
+          {/* Subtle geometric background */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#1e1e3f] to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#1e1e3f] to-transparent" />
+            {/* Vertical accent line */}
+            <div className="absolute top-24 bottom-24 left-[60%] w-px bg-gradient-to-b from-transparent via-[#1e1e3f] to-transparent hidden lg:block" />
+          </div>
 
-          <div className="relative z-10 max-w-5xl mx-auto">
-            <FadeIn delay={0.05}>
-              <div className="inline-flex items-center gap-2.5 text-xs font-medium text-[#94a3b8] bg-[#111128] border border-[#1e1e3f] rounded-full px-4 py-2 mb-10 shadow-[0_0_20px_rgba(139,92,246,0.08)]">
-                <span className="w-2 h-2 rounded-full bg-[#8b5cf6] animate-[dot-pulse_2s_ease-in-out_infinite]" />
-                Brevo · Mailgun · SendGrid · AWS SES — ton expéditeur, ton choix
+          <div className="max-w-7xl mx-auto w-full">
+            <div className="grid lg:grid-cols-[1fr_420px] gap-16 items-center">
+
+              {/* Left — Copy */}
+              <div>
+                <FadeIn delay={0.05}>
+                  <p className="text-xs font-mono text-[#8b5cf6] uppercase tracking-[0.2em] mb-8">
+                    Cold email infrastructure — B2B
+                  </p>
+                </FadeIn>
+
+                <FadeUp delay={0.1}>
+                  <h1 className="text-[clamp(3rem,8vw,6.5rem)] font-black leading-[0.95] tracking-[-0.04em] text-white mb-8">
+                    Prospecte.<br />
+                    Chauffe.<br />
+                    <span className="text-[#8b5cf6]">Convertis.</span>
+                  </h1>
+                </FadeUp>
+
+                <FadeUp delay={0.2}>
+                  <p className="text-lg text-[#64748b] max-w-lg leading-relaxed mb-10 font-light">
+                    Ton infrastructure cold email complète — warmup automatique, séquences multi-étapes, délivrabilité optimisée. Ton expéditeur, tes données, ton contrôle.
+                  </p>
+                </FadeUp>
+
+                <FadeUp delay={0.28}>
+                  <div className="flex flex-wrap items-center gap-4 mb-12">
+                    <Link href="/signup" className="inline-flex items-center gap-2 bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-semibold px-6 py-3.5 rounded-lg transition-colors text-sm">
+                      Commencer gratuitement
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                      </svg>
+                    </Link>
+                    <Link href="/pricing" className="text-sm text-[#64748b] hover:text-white transition-colors">
+                      Voir les tarifs →
+                    </Link>
+                  </div>
+                  <p className="text-xs text-[#334155] font-mono">100 emails offerts · Aucune carte · 5 min de setup</p>
+                </FadeUp>
               </div>
-            </FadeIn>
 
-            <FadeUp delay={0.1}>
-              <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold leading-[1.05] tracking-tight mb-8">
-                <span className="text-white">Cold email B2B.</span>
-                <br />
-                <span className="gradient-text">Automatisé de A à Z.</span>
-              </h1>
-            </FadeUp>
-
-            <FadeUp delay={0.2}>
-              <p className="text-lg md:text-xl text-[#94a3b8] max-w-2xl mx-auto leading-relaxed mb-12">
-                Connecte ton expéditeur email (Brevo, Mailgun, SendGrid ou AWS SES), importe tes contacts et lance des campagnes de prospection avec warmup automatique — réputation isolée, délivrabilité maximale, contrôle total.
-              </p>
-            </FadeUp>
-
-            <FadeUp delay={0.3}>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link href="/signup" className="btn-primary px-7 py-3.5 text-base inline-block">
-                  Commencer gratuitement →
-                </Link>
-                <Link href="/pricing" className="btn-ghost px-7 py-3.5 text-base inline-block text-[#94a3b8]">
-                  Voir les tarifs
-                </Link>
-              </div>
-              <p className="mt-5 text-xs text-[#475569]">100 emails offerts · Aucune carte requise · Setup en 5 minutes</p>
-            </FadeUp>
-
-            {/* App preview */}
-            <FadeUp delay={0.45}>
-              <div className="mt-20 relative max-w-3xl mx-auto">
-                <div className="card-dark border-glow glow-purple p-1 rounded-2xl">
-                  <div className="bg-[#0d0d1c] rounded-xl p-6 text-left">
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="w-3 h-3 rounded-full bg-[#1e1e3f]" />
-                      <div className="w-3 h-3 rounded-full bg-[#1e1e3f]" />
-                      <div className="w-3 h-3 rounded-full bg-[#1e1e3f]" />
-                      <div className="flex-1 bg-[#111128] rounded-md h-6 mx-4" />
+              {/* Right — Inbox mockup */}
+              <FadeIn delay={0.35}>
+                <div className="relative">
+                  <div className="bg-[#0a0a18] border border-[#1e1e3f] rounded-xl overflow-hidden">
+                    {/* Window chrome */}
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-[#1e1e3f] bg-[#0d0d1c]">
+                      <div className="flex gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#1e1e3f]" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#1e1e3f]" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#1e1e3f]" />
+                      </div>
+                      <div className="flex-1 mx-3">
+                        <div className="bg-[#111128] rounded-md h-5 w-48 mx-auto" />
+                      </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-3 mb-4">
-                      {[
-                        { label: 'Envoyés', val: '2 847' },
-                        { label: 'Ouverts', val: '61%' },
-                        { label: 'Réponses', val: '8.4%' },
-                        { label: 'Bounce', val: '0.3%' },
-                      ].map(s => (
-                        <div key={s.label} className="bg-[#111128] border border-[#1e1e3f] rounded-lg p-3 text-center">
-                          <p className="text-xs text-[#475569] mb-1">{s.label}</p>
-                          <p className="text-sm font-semibold text-white">{s.val}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="space-y-2">
-                      {[
-                        { name: 'Outreach Q2 — Tech SaaS', status: 'En cours', color: 'text-[#8b5cf6]', dot: 'bg-[#8b5cf6]' },
-                        { name: 'Follow-up Agences Paris', status: 'En pause', color: 'text-[#94a3b8]', dot: 'bg-[#1e1e3f]' },
-                        { name: 'Warm intro — Scale-ups', status: 'Warmup', color: 'text-yellow-400', dot: 'bg-yellow-400' },
-                      ].map(c => (
-                        <div key={c.name} className="flex items-center justify-between bg-[#111128] border border-[#1e1e3f] rounded-lg px-4 py-2.5">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-2 h-2 rounded-full ${c.dot}`} />
-                            <span className="text-sm text-[#94a3b8]">{c.name}</span>
+
+                    {/* Campaign stats header */}
+                    <div className="px-5 pt-5 pb-3 border-b border-[#1e1e3f]">
+                      <p className="text-[10px] font-mono text-[#334155] mb-3 uppercase tracking-widest">Outreach Q2 — Scale-ups FR</p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { label: 'Envoyés', val: '2 847', color: 'text-white' },
+                          { label: 'Ouverts', val: '63%', color: 'text-[#8b5cf6]' },
+                          { label: 'Réponses', val: '8.4%', color: 'text-emerald-400' },
+                          { label: 'Bounce', val: '0.2%', color: 'text-[#64748b]' },
+                        ].map(s => (
+                          <div key={s.label} className="text-center">
+                            <p className={`text-base font-black font-mono ${s.color}`}>{s.val}</p>
+                            <p className="text-[9px] text-[#334155] mt-0.5">{s.label}</p>
                           </div>
-                          <span className={`text-xs font-medium ${c.color}`}>{c.status}</span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Inbox rows */}
+                    <div className="divide-y divide-[#0f0f24]">
+                      {[
+                        { name: 'Marie Dupont', co: 'Luko', subj: 'Re: Automatiser votre prospection', time: '09:41', badge: 'Réponse', badgeColor: 'text-emerald-400 bg-emerald-400/10' },
+                        { name: 'Thomas Berger', co: 'Pennylane', subj: 'Re: Qualité des leads entrants', time: '09:12', badge: 'Réponse', badgeColor: 'text-emerald-400 bg-emerald-400/10' },
+                        { name: 'Julie Martin', co: 'Alan', subj: 'Outreach Q2 — Scale-ups FR', time: '08:55', badge: 'Ouvert', badgeColor: 'text-[#8b5cf6] bg-[#8b5cf6]/10' },
+                        { name: 'Paul Chevalier', co: 'Spendesk', subj: 'Outreach Q2 — Scale-ups FR', time: '08:30', badge: 'Envoyé', badgeColor: 'text-[#334155] bg-[#1e1e3f]' },
+                        { name: 'Sarah Leroy', co: 'Swile', subj: 'Outreach Q2 — Scale-ups FR', time: '08:15', badge: 'Envoyé', badgeColor: 'text-[#334155] bg-[#1e1e3f]' },
+                      ].map((r) => (
+                        <div key={r.name} className="flex items-center gap-3 px-4 py-3 hover:bg-[#0d0d1c] transition-colors">
+                          <div className="w-7 h-7 rounded-full bg-[#111128] border border-[#1e1e3f] flex items-center justify-center shrink-0">
+                            <span className="text-[10px] font-bold text-[#8b5cf6]">{r.name[0]}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-xs font-semibold text-white">{r.name} <span className="text-[#334155] font-normal">· {r.co}</span></span>
+                              <span className="text-[10px] text-[#334155] font-mono shrink-0 ml-2">{r.time}</span>
+                            </div>
+                            <p className="text-[11px] text-[#475569] truncate">{r.subj}</p>
+                          </div>
+                          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-md shrink-0 ${r.badgeColor}`}>{r.badge}</span>
                         </div>
                       ))}
+                    </div>
+
+                    {/* Warmup bar */}
+                    <div className="px-4 py-3 border-t border-[#1e1e3f] bg-[#0d0d1c]">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-mono text-[#334155]">WARMUP — outreach-q2.io</span>
+                        <span className="text-[10px] font-mono text-[#8b5cf6]">Jour 18/40</span>
+                      </div>
+                      <div className="h-1 bg-[#111128] rounded-full overflow-hidden">
+                        <div className="h-full w-[45%] bg-[#7c3aed] rounded-full" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Floating stat */}
+                  <div className="absolute -bottom-4 -left-6 bg-[#0d0d1c] border border-[#1e1e3f] rounded-lg px-4 py-3 shadow-xl">
+                    <p className="text-[10px] text-[#334155] font-mono mb-0.5">RÉPUTATION DOMAINE</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl font-black font-mono text-emerald-400">98</span>
+                      <span className="text-xs text-[#334155]">/100</span>
+                      <svg className="w-3.5 h-3.5 text-emerald-400 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
                     </div>
                   </div>
                 </div>
-                <div className="absolute -bottom-px left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-[#8b5cf6] to-transparent" />
-              </div>
-            </FadeUp>
+              </FadeIn>
+
+            </div>
           </div>
         </section>
 
-        {/* ─── BUILT ON ─── */}
+        {/* ─── EXPÉDITEURS ─── */}
         <FadeIn>
-          <section className="border-y border-[#1e1e3f] py-10">
+          <section className="border-y border-[#1e1e3f] py-8">
             <div className="max-w-6xl mx-auto px-6">
-              <p className="text-xs text-[#475569] text-center uppercase tracking-widest mb-8">Compatible avec les meilleurs expéditeurs</p>
-              <div className="flex flex-wrap items-center justify-center gap-10 md:gap-16">
-                {['Brevo', 'Mailgun', 'SendGrid', 'AWS SES', 'Next.js 16', 'Supabase'].map(name => (
-                  <span key={name} className="text-sm font-medium text-[#3b3b6f] hover:text-[#8b5cf6] transition-colors">{name}</span>
-                ))}
+              <div className="flex flex-wrap items-center justify-between gap-6">
+                <p className="text-xs font-mono text-[#334155] uppercase tracking-widest">Compatible avec</p>
+                <div className="flex flex-wrap items-center gap-8">
+                  {['Brevo', 'Mailgun', 'SendGrid', 'AWS SES'].map(name => (
+                    <span key={name} className="text-sm font-semibold text-[#3b3b6f] hover:text-[#8b5cf6] transition-colors cursor-default tracking-tight">{name}</span>
+                  ))}
+                </div>
+                <p className="text-xs font-mono text-[#334155]">BYOA — ton infra, tes données</p>
               </div>
             </div>
           </section>
         </FadeIn>
 
-        {/* ─── COMMENT ÇA MARCHE ─── */}
-        <section className="py-28 border-y border-[#1e1e3f] bg-[#0d0d1c] relative overflow-hidden">
-          <div className="orb orb-blue w-[500px] h-[500px] -bottom-40 left-1/2 -translate-x-1/2 opacity-15" />
-          <div className="max-w-6xl mx-auto px-6 relative z-10">
-            <FadeUp>
-              <div className="text-center mb-20">
-                <p className="text-xs font-semibold text-[#8b5cf6] uppercase tracking-widest mb-4">Comment ça marche</p>
-                <h2 className="text-4xl md:text-5xl font-bold text-white mb-5">
-                  Opérationnel en <span className="gradient-text">4 étapes</span>
-                </h2>
-                <p className="text-[#94a3b8]">Du compte créé à la première campagne en moins de 10 minutes.</p>
-              </div>
-            </FadeUp>
-
-            <div className="grid md:grid-cols-4 gap-8 relative">
-              <div className="absolute top-8 left-[12.5%] right-[12.5%] h-px hidden md:block"
-                style={{ background: 'linear-gradient(90deg, transparent, #1e1e3f 20%, #3b3b6f 50%, #1e1e3f 80%, transparent)' }}
-              />
+        {/* ─── STATS ─── */}
+        <section className="py-24 border-b border-[#1e1e3f]">
+          <div className="max-w-6xl mx-auto px-6">
+            <div className="grid md:grid-cols-3 gap-0 divide-y md:divide-y-0 md:divide-x divide-[#1e1e3f]">
               {[
-                { step: '01', title: 'Crée un compte', desc: 'Inscription gratuite en 30 secondes. 100 emails offerts pour tester, sans carte bancaire.' },
-                { step: '02', title: 'Connecte ton expéditeur', desc: 'Choisis entre Brevo (5 min), Mailgun, SendGrid ou AWS SES. Colle ta clé API, c\'est tout.' },
-                { step: '03', title: 'Ajoute tes contacts', desc: 'Importe un CSV ou ajoute manuellement. Crée des listes, segmente, personnalise.' },
-                { step: '04', title: 'Lance ta campagne', desc: 'Écris ton email avec l\'IA, configure le warmup, et envoie. Les stats arrivent en temps réel.' },
+                { num: '< 10min', label: 'De l\'inscription au premier email envoyé', sub: 'Setup guidé pas à pas' },
+                { num: '0€', label: 'De frais par email côté Weeral', sub: 'Tu paies directement ton expéditeur' },
+                { num: '40j', label: 'De warmup progressif automatique', sub: 'Réputation domaine maximale garantie' },
               ].map((s, i) => (
-                <FadeUp key={s.step} delay={i * 0.1}>
-                  <div className="text-center relative">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#7c3aed] to-[#4c1d95] border border-[#8b5cf6]/30 flex items-center justify-center mx-auto mb-5 shadow-[0_0_24px_rgba(139,92,246,0.2)]">
-                      <span className="text-lg font-bold text-white">{s.step}</span>
-                    </div>
-                    <h3 className="font-semibold text-white mb-2">{s.title}</h3>
-                    <p className="text-sm text-[#94a3b8] leading-relaxed">{s.desc}</p>
+                <FadeUp key={i} delay={i * 0.1}>
+                  <div className="py-10 px-8 text-center md:text-left">
+                    <p className="text-5xl md:text-6xl font-black font-mono text-white tracking-tight mb-3">{s.num}</p>
+                    <p className="text-sm text-[#94a3b8] font-medium mb-1">{s.label}</p>
+                    <p className="text-xs text-[#334155]">{s.sub}</p>
                   </div>
                 </FadeUp>
               ))}
@@ -223,172 +238,257 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* ─── FEATURES ─── */}
-        <section id="fonctionnalites" className="py-28 relative">
-          <div className="orb orb-purple w-[400px] h-[400px] top-0 right-0 opacity-20" />
-          <div className="max-w-6xl mx-auto px-6 relative z-10">
-            <FadeUp>
-              <div className="text-center mb-20">
-                <p className="text-xs font-semibold text-[#8b5cf6] uppercase tracking-widest mb-4">Fonctionnalités</p>
-                <h2 className="text-4xl md:text-5xl font-bold text-white mb-5">
-                  Tout ce qu&apos;il faut pour<br />
-                  <span className="gradient-text">prospecter à grande échelle</span>
+        {/* ─── PROBLÈME / SOLUTION ─── */}
+        <section className="py-28 relative">
+          <div className="max-w-6xl mx-auto px-6">
+            <div className="grid lg:grid-cols-2 gap-16 items-start">
+
+              {/* Left */}
+              <FadeUp>
+                <p className="text-xs font-mono text-[#8b5cf6] uppercase tracking-[0.2em] mb-6">Le problème</p>
+                <h2 className="text-4xl md:text-5xl font-black leading-[1.05] tracking-[-0.03em] text-white mb-8">
+                  Les outils actuels te rendent dépendant.
                 </h2>
-                <p className="text-[#94a3b8] max-w-xl mx-auto">
-                  Weeral gère le warmup, la délivrabilité et les séquences à ta place — tu te concentres sur le message.
-                </p>
+                <div className="space-y-4">
+                  {[
+                    { bad: 'Frais par email qui explosent au volume', icon: '↗' },
+                    { bad: 'Réputation partagée avec des milliers d\'autres', icon: '⚠' },
+                    { bad: 'Données clients hébergées chez le fournisseur', icon: '🔒' },
+                    { bad: 'Warmup manuel chronophage et imprévisible', icon: '⏱' },
+                  ].map(({ bad, icon }) => (
+                    <div key={bad} className="flex items-center gap-4 py-3 border-b border-[#1e1e3f]">
+                      <span className="text-[#334155] font-mono text-sm w-6">{icon}</span>
+                      <p className="text-[#64748b] text-sm line-through decoration-[#334155]">{bad}</p>
+                    </div>
+                  ))}
+                </div>
+              </FadeUp>
+
+              {/* Right */}
+              <FadeUp delay={0.15}>
+                <p className="text-xs font-mono text-emerald-400 uppercase tracking-[0.2em] mb-6">La solution Weeral</p>
+                <h2 className="text-4xl md:text-5xl font-black leading-[1.05] tracking-[-0.03em] text-white mb-8">
+                  Ton infra. Tes règles.
+                </h2>
+                <div className="space-y-4">
+                  {[
+                    { good: 'Abonnement fixe. Zéro frais par email côté nous.' },
+                    { good: 'Réputation isolée par domaine. 100% à toi.' },
+                    { good: 'Clés API chiffrées AES-256. Accès zéro de notre part.' },
+                    { good: 'Warmup auto : volume calculé chaque jour, sans intervention.' },
+                  ].map(({ good }) => (
+                    <div key={good} className="flex items-center gap-4 py-3 border-b border-[#1e1e3f]">
+                      <div className="w-5 h-5 rounded-full bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center shrink-0">
+                        <svg className="w-2.5 h-2.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <p className="text-[#94a3b8] text-sm">{good}</p>
+                    </div>
+                  ))}
+                </div>
+              </FadeUp>
+            </div>
+          </div>
+        </section>
+
+        {/* ─── FONCTIONNALITÉS ─── */}
+        <section id="fonctionnalites" className="py-28 bg-[#0a0a18] border-y border-[#1e1e3f]">
+          <div className="max-w-6xl mx-auto px-6">
+            <FadeUp>
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16 pb-8 border-b border-[#1e1e3f]">
+                <div>
+                  <p className="text-xs font-mono text-[#8b5cf6] uppercase tracking-[0.2em] mb-4">Infrastructure</p>
+                  <h2 className="text-4xl md:text-5xl font-black leading-[1.05] tracking-[-0.03em] text-white">
+                    Tout ce qu&apos;il faut<br />pour prospecter sérieusement.
+                  </h2>
+                </div>
+                <Link href="/signup" className="shrink-0 text-sm font-medium text-[#8b5cf6] hover:text-white border border-[#8b5cf6]/30 hover:border-[#8b5cf6] px-5 py-2.5 rounded-lg transition-all">
+                  Essayer gratuitement →
+                </Link>
               </div>
             </FadeUp>
 
-            <Stagger className="grid md:grid-cols-3 gap-5">
+            <div className="grid md:grid-cols-2 gap-px bg-[#1e1e3f]">
               {[
                 {
-                  icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
-                  title: 'Ton expéditeur, ton choix',
-                  desc: 'Brevo, Mailgun, SendGrid ou AWS SES. Connecte en 5 min avec ta clé API. Chaque utilisateur a son infrastructure isolée.',
-                },
-                {
-                  icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
+                  num: '01',
                   title: 'Warmup automatique',
-                  desc: 'Montée en charge progressive sur 14 jours. Volume augmente chaque jour selon un schedule calibré pour maximiser ta réputation.',
+                  desc: 'Mode Progressif (40j) ou Accéléré (14j). Volume calculé chaque jour. Réputation montée en charge sans intervention manuelle.',
+                  tag: 'Délivrabilité',
                 },
                 {
-                  icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>,
-                  title: 'Rédaction IA',
-                  desc: 'L\'IA génère ton email de prospection selon ta cible et ton secteur. Objet, intro, CTA — en quelques secondes.',
+                  num: '02',
+                  title: 'BYOA — Ton expéditeur',
+                  desc: 'Brevo, Mailgun, SendGrid, AWS SES. Chaque user a son infrastructure isolée. Tu gardes tes credentials, ta réputation, ta data.',
+                  tag: 'Infrastructure',
                 },
                 {
-                  icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
-                  title: 'Gestion des contacts',
-                  desc: 'Import CSV en un clic, listes segmentées, variables de personnalisation {{prénom}} {{entreprise}} dans chaque email.',
+                  num: '03',
+                  title: 'Séquences multi-étapes',
+                  desc: 'Crée des séquences de suivi automatiques avec délais personnalisés. Stop auto sur réponse, bounce ou désinscription.',
+                  tag: 'Automatisation',
                 },
                 {
-                  icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
-                  title: 'Analytics en temps réel',
-                  desc: 'Taux d\'ouverture, de clics, de réponses, de bounces. Pause automatique si les seuils critiques sont dépassés.',
+                  num: '04',
+                  title: 'Analytics temps réel',
+                  desc: 'Ouvertures, clics, réponses, bounces. Pause automatique si les seuils critiques sont dépassés. Alertes instantanées.',
+                  tag: 'Performance',
                 },
                 {
-                  icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
-                  title: 'Conformité RGPD',
-                  desc: 'Lien de désinscription signé ajouté automatiquement. Gestion des optouts immédiate. Clés chiffrées AES-256.',
+                  num: '05',
+                  title: 'Contacts & personnalisation',
+                  desc: 'Import CSV, variables {{prénom}} {{entreprise}}, listes segmentées. Suppression auto des optouts et bounces.',
+                  tag: 'CRM léger',
+                },
+                {
+                  num: '06',
+                  title: 'Conformité RGPD intégrée',
+                  desc: 'Lien de désinscription signé HMAC ajouté automatiquement. Gestion des optouts immédiate. Clés chiffrées AES-256-GCM.',
+                  tag: 'Compliance',
                 },
               ].map((f) => (
-                <StaggerItem key={f.title}>
-                  <div className="card-dark p-6 h-full group cursor-default">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#111128] to-[#16163a] border border-[#1e1e3f] group-hover:border-[#8b5cf6]/40 flex items-center justify-center text-[#8b5cf6] mb-5 transition-all">
-                      {f.icon}
+                <FadeIn key={f.num}>
+                  <div className="bg-[#0a0a18] p-8 group hover:bg-[#0d0d1c] transition-colors">
+                    <div className="flex items-start justify-between mb-5">
+                      <span className="text-[10px] font-mono text-[#334155]">{f.num}</span>
+                      <span className="text-[10px] font-mono text-[#8b5cf6] bg-[#8b5cf6]/10 px-2 py-1 rounded">{f.tag}</span>
                     </div>
-                    <h3 className="font-semibold text-white mb-2">{f.title}</h3>
-                    <p className="text-sm text-[#94a3b8] leading-relaxed">{f.desc}</p>
+                    <h3 className="text-lg font-bold text-white tracking-tight mb-3">{f.title}</h3>
+                    <p className="text-sm text-[#64748b] leading-relaxed">{f.desc}</p>
                   </div>
-                </StaggerItem>
+                </FadeIn>
               ))}
-            </Stagger>
+            </div>
+          </div>
+        </section>
+
+        {/* ─── COMMENT ÇA MARCHE ─── */}
+        <section className="py-28 relative">
+          <div className="max-w-6xl mx-auto px-6">
+            <FadeUp>
+              <p className="text-xs font-mono text-[#8b5cf6] uppercase tracking-[0.2em] mb-4">Process</p>
+              <h2 className="text-4xl md:text-5xl font-black leading-[1.05] tracking-[-0.03em] text-white mb-16">
+                Opérationnel en 4 étapes.
+              </h2>
+            </FadeUp>
+
+            <div className="space-y-0 divide-y divide-[#1e1e3f]">
+              {[
+                { n: '01', title: 'Crée ton compte', desc: 'Inscription gratuite en 30 secondes. 100 contacts et 100 emails offerts pour tester, sans carte bancaire.' },
+                { n: '02', title: 'Connecte ton expéditeur', desc: 'Colle ta clé API Brevo, Mailgun, SendGrid ou tes credentials AWS SES. L\'infrastructure est isolée pour ton compte.' },
+                { n: '03', title: 'Importe tes contacts', desc: 'Glisse ton CSV. Variables de personnalisation détectées automatiquement. Dédoublonnage et validation en un clic.' },
+                { n: '04', title: 'Lance et monitore', desc: 'Écris ton email, configure le warmup, envoie. Stats en temps réel, alertes automatiques, séquences de suivi sur pilote.' },
+              ].map((s, i) => (
+                <FadeUp key={s.n} delay={i * 0.08}>
+                  <div className="grid md:grid-cols-[80px_1fr_1fr] gap-6 py-8 items-center group">
+                    <span className="text-4xl font-black font-mono text-[#1e1e3f] group-hover:text-[#8b5cf6] transition-colors">{s.n}</span>
+                    <h3 className="text-xl font-bold text-white tracking-tight">{s.title}</h3>
+                    <p className="text-sm text-[#64748b] leading-relaxed">{s.desc}</p>
+                  </div>
+                </FadeUp>
+              ))}
+            </div>
           </div>
         </section>
 
         {/* ─── PRICING ─── */}
-        <section className="py-28 relative">
-          <div className="orb orb-purple w-[500px] h-[500px] -top-20 left-0 opacity-20" />
-          <div className="max-w-6xl mx-auto px-6 relative z-10">
+        <section className="py-28 bg-[#0a0a18] border-y border-[#1e1e3f]">
+          <div className="max-w-6xl mx-auto px-6">
             <FadeUp>
-              <div className="text-center mb-16">
-                <p className="text-xs font-semibold text-[#8b5cf6] uppercase tracking-widest mb-4">Tarification</p>
-                <h2 className="text-4xl md:text-5xl font-bold text-white mb-5">
-                  Simple et transparent.<br />
-                  <span className="gradient-text">Sans surprise.</span>
+              <div className="mb-16">
+                <p className="text-xs font-mono text-[#8b5cf6] uppercase tracking-[0.2em] mb-4">Tarifs</p>
+                <h2 className="text-4xl md:text-5xl font-black leading-[1.05] tracking-[-0.03em] text-white">
+                  Fixe. Prévisible. Sans surprise.
                 </h2>
-                <p className="text-[#94a3b8] max-w-lg mx-auto">
-                  Un abonnement fixe. Aucun frais par email — tu paies directement ton expéditeur selon ton volume.
-                </p>
               </div>
             </FadeUp>
 
-            <div className="grid md:grid-cols-3 gap-5 max-w-5xl mx-auto">
+            <div className="grid md:grid-cols-3 gap-4">
               {/* Starter */}
-              <ScaleIn delay={0.08}>
-                <div className="card-dark p-7 h-full flex flex-col">
-                  <div className="mb-5">
-                    <p className="text-xs font-bold text-[#475569] uppercase tracking-widest mb-2">Starter</p>
-                    <div className="flex items-end gap-1 mb-1">
-                      <p className="text-4xl font-bold text-white">147€</p>
-                      <span className="text-base font-normal text-[#475569] mb-1">/mois</span>
+              <FadeIn delay={0.05}>
+                <div className="border border-[#1e1e3f] rounded-xl p-6 h-full flex flex-col hover:border-[#3b3b6f] transition-colors">
+                  <div className="mb-6 pb-6 border-b border-[#1e1e3f]">
+                    <p className="text-xs font-mono text-[#334155] uppercase tracking-widest mb-4">Starter</p>
+                    <div className="flex items-end gap-2">
+                      <span className="text-5xl font-black font-mono text-white">147</span>
+                      <span className="text-lg text-[#334155] mb-1">€/mois</span>
                     </div>
-                    <p className="text-xs text-emerald-400">ou 88€/mois en annuel (−40%)</p>
+                    <p className="text-xs text-[#334155] mt-2 font-mono">ou 88€/mois en annuel −40%</p>
                   </div>
-                  <ul className="space-y-2.5 flex-1 mb-7">
-                    {['3 domaines', '5 boîtes mail', '3 campagnes actives', 'Warmup automatique', 'IA basique', '100 contacts & emails offerts'].map(f => (
-                      <li key={f} className="flex items-center gap-2.5 text-sm text-[#94a3b8]">
-                        <div className="w-4 h-4 rounded-full bg-[#1e1e3f] border border-[#3b3b6f] flex items-center justify-center shrink-0">
-                          <svg className="w-2.5 h-2.5 text-[#8b5cf6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                        </div>
+                  <ul className="space-y-3 flex-1 mb-6">
+                    {['3 domaines', '5 boîtes mail', '3 campagnes actives', 'Warmup automatique', '100 contacts & emails offerts'].map(f => (
+                      <li key={f} className="flex items-center gap-3 text-sm text-[#64748b]">
+                        <span className="text-[#334155] font-mono">—</span>
                         {f}
                       </li>
                     ))}
                   </ul>
-                  <Link href="/pricing" className="btn-ghost px-4 py-3 text-sm text-center block">Voir le plan</Link>
+                  <Link href="/pricing" className="block text-center text-sm font-medium py-2.5 px-4 rounded-lg border border-[#1e1e3f] text-[#94a3b8] hover:border-[#3b3b6f] hover:text-white transition-all">
+                    Voir le plan
+                  </Link>
                 </div>
-              </ScaleIn>
+              </FadeIn>
 
               {/* Growth */}
-              <ScaleIn delay={0.16}>
-                <div className="relative p-7 rounded-2xl border-glow-bright bg-[#111128] h-full flex flex-col glow-purple-sm">
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[#7c3aed] to-[#a855f7] text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-[0_0_20px_rgba(139,92,246,0.4)] whitespace-nowrap">
-                    ✦ Le plus populaire
+              <FadeIn delay={0.1}>
+                <div className="border border-[#7c3aed]/50 rounded-xl p-6 h-full flex flex-col bg-[#0d0d1c] relative">
+                  <div className="absolute top-4 right-4">
+                    <span className="text-[10px] font-mono text-[#8b5cf6] bg-[#8b5cf6]/10 px-2 py-1 rounded">POPULAIRE</span>
                   </div>
-                  <div className="mb-5">
-                    <p className="text-xs font-bold text-[#8b5cf6] uppercase tracking-widest mb-2">Growth</p>
-                    <div className="flex items-end gap-1 mb-1">
-                      <p className="text-4xl font-bold text-white">197€</p>
-                      <span className="text-base font-normal text-[#475569] mb-1">/mois</span>
+                  <div className="mb-6 pb-6 border-b border-[#1e1e3f]">
+                    <p className="text-xs font-mono text-[#8b5cf6] uppercase tracking-widest mb-4">Growth</p>
+                    <div className="flex items-end gap-2">
+                      <span className="text-5xl font-black font-mono text-white">197</span>
+                      <span className="text-lg text-[#334155] mb-1">€/mois</span>
                     </div>
-                    <p className="text-xs text-emerald-400">ou 118€/mois en annuel (−40%)</p>
+                    <p className="text-xs text-[#334155] mt-2 font-mono">ou 118€/mois en annuel −40%</p>
                   </div>
-                  <ul className="space-y-2.5 flex-1 mb-7">
-                    {['10 domaines', '20 boîtes mail', 'Campagnes illimitées', 'Warmup automatique', 'IA complète', 'Séquences multi-étapes', 'Support prioritaire'].map(f => (
-                      <li key={f} className="flex items-center gap-2.5 text-sm text-[#94a3b8]">
-                        <div className="w-4 h-4 rounded-full bg-[#8b5cf6]/20 border border-[#8b5cf6]/40 flex items-center justify-center shrink-0">
-                          <svg className="w-2.5 h-2.5 text-[#a78bfa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                        </div>
+                  <ul className="space-y-3 flex-1 mb-6">
+                    {['10 domaines', '20 boîtes mail', 'Campagnes illimitées', 'Warmup automatique', 'Séquences multi-étapes', 'Support prioritaire'].map(f => (
+                      <li key={f} className="flex items-center gap-3 text-sm text-[#94a3b8]">
+                        <span className="text-[#8b5cf6] font-mono">—</span>
                         {f}
                       </li>
                     ))}
                   </ul>
-                  <Link href="/pricing" className="btn-primary px-4 py-3 text-sm text-center block">Voir le plan →</Link>
+                  <Link href="/pricing" className="block text-center text-sm font-semibold py-2.5 px-4 rounded-lg bg-[#7c3aed] hover:bg-[#6d28d9] text-white transition-colors">
+                    Voir le plan →
+                  </Link>
                 </div>
-              </ScaleIn>
+              </FadeIn>
 
               {/* Agency */}
-              <ScaleIn delay={0.24}>
-                <div className="bg-[#0d0d1c] border border-amber-500/20 rounded-2xl p-7 h-full flex flex-col">
-                  <div className="mb-5">
-                    <p className="text-xs font-bold text-amber-400 uppercase tracking-widest mb-2">Agency</p>
-                    <div className="flex items-end gap-1 mb-1">
-                      <p className="text-4xl font-bold text-white">347€</p>
-                      <span className="text-base font-normal text-[#475569] mb-1">/mois</span>
+              <FadeIn delay={0.15}>
+                <div className="border border-[#1e1e3f] rounded-xl p-6 h-full flex flex-col hover:border-amber-500/30 transition-colors">
+                  <div className="mb-6 pb-6 border-b border-[#1e1e3f]">
+                    <p className="text-xs font-mono text-amber-500 uppercase tracking-widest mb-4">Agency</p>
+                    <div className="flex items-end gap-2">
+                      <span className="text-5xl font-black font-mono text-white">347</span>
+                      <span className="text-lg text-[#334155] mb-1">€/mois</span>
                     </div>
-                    <p className="text-xs text-emerald-400">ou 208€/mois en annuel (−40%)</p>
+                    <p className="text-xs text-[#334155] mt-2 font-mono">ou 208€/mois en annuel −40%</p>
                   </div>
-                  <ul className="space-y-2.5 flex-1 mb-7">
-                    {['Domaines illimités', 'Boîtes illimitées', 'Campagnes illimitées', 'Warmup automatique', 'IA complète', 'White label', 'Support dédié'].map(f => (
-                      <li key={f} className="flex items-center gap-2.5 text-sm text-[#94a3b8]">
-                        <div className="w-4 h-4 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
-                          <svg className="w-2.5 h-2.5 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                        </div>
+                  <ul className="space-y-3 flex-1 mb-6">
+                    {['Domaines illimités', 'Boîtes illimitées', 'Campagnes illimitées', 'Warmup automatique', 'Séquences illimitées', 'White label', 'Support dédié'].map(f => (
+                      <li key={f} className="flex items-center gap-3 text-sm text-[#64748b]">
+                        <span className="text-amber-500 font-mono">—</span>
                         {f}
                       </li>
                     ))}
                   </ul>
-                  <Link href="/pricing" className="block text-center text-sm font-medium py-3 px-4 rounded-xl border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-400/50 transition-all">Voir le plan</Link>
+                  <Link href="/pricing" className="block text-center text-sm font-medium py-2.5 px-4 rounded-lg border border-amber-500/20 text-amber-400 hover:bg-amber-500/5 transition-all">
+                    Voir le plan
+                  </Link>
                 </div>
-              </ScaleIn>
+              </FadeIn>
             </div>
 
-            <FadeIn delay={0.3}>
-              <p className="text-center mt-8 text-sm text-[#475569]">
-                Économisez <span className="text-emerald-400 font-medium">40%</span> avec le plan annuel ·{' '}
-                <Link href="/pricing" className="text-[#8b5cf6] hover:text-[#a78bfa] underline underline-offset-4 transition-colors">
-                  Voir la comparaison complète →
+            <FadeIn delay={0.2}>
+              <p className="text-xs font-mono text-[#334155] text-center mt-8">
+                ABONNEMENT ANNUEL — ÉCONOMIE DE 40% ·{' '}
+                <Link href="/pricing" className="text-[#8b5cf6] hover:text-white transition-colors">
+                  COMPARAISON COMPLÈTE →
                 </Link>
               </p>
             </FadeIn>
@@ -396,57 +496,52 @@ export default async function Home() {
         </section>
 
         {/* ─── FAQ ─── */}
-        <section className="py-28 border-t border-[#1e1e3f] relative">
-          <div className="orb orb-pink w-[400px] h-[400px] top-0 right-1/4 opacity-15" />
-          <div className="max-w-3xl mx-auto px-6 relative z-10">
+        <section className="py-28">
+          <div className="max-w-4xl mx-auto px-6">
             <FadeUp>
-              <div className="text-center mb-16">
-                <p className="text-xs font-semibold text-[#8b5cf6] uppercase tracking-widest mb-4">FAQ</p>
-                <h2 className="text-4xl font-bold text-white">Questions fréquentes</h2>
-              </div>
+              <p className="text-xs font-mono text-[#8b5cf6] uppercase tracking-[0.2em] mb-4">FAQ</p>
+              <h2 className="text-4xl md:text-5xl font-black leading-[1.05] tracking-[-0.03em] text-white mb-16">
+                Questions directes,<br />réponses directes.
+              </h2>
             </FadeUp>
 
-            <Stagger className="space-y-4" staggerDelay={0.07}>
-              {FAQ_ITEMS.map((faq) => (
-                <StaggerItem key={faq.q}>
-                  <div className="card-dark p-6 group cursor-default">
-                    <p className="font-medium text-white mb-2.5 group-hover:text-[#a78bfa] transition-colors">{faq.q}</p>
-                    <p className="text-sm text-[#94a3b8] leading-relaxed">{faq.a}</p>
+            <div className="space-y-0 divide-y divide-[#1e1e3f]">
+              {FAQ_ITEMS.map((faq, i) => (
+                <FadeUp key={faq.q} delay={i * 0.06}>
+                  <div className="py-7 grid md:grid-cols-[1fr_1.2fr] gap-6">
+                    <p className="font-bold text-white text-sm leading-snug">{faq.q}</p>
+                    <p className="text-sm text-[#64748b] leading-relaxed">{faq.a}</p>
                   </div>
-                </StaggerItem>
+                </FadeUp>
               ))}
-            </Stagger>
+            </div>
           </div>
         </section>
 
         {/* ─── CTA FINAL ─── */}
-        <ScaleIn>
-          <section className="py-28 px-6 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#2d1b69] via-[#1e1b4b] to-[#07070f]" />
-            <div className="orb orb-purple w-[600px] h-[600px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-30" />
-            <div className="relative z-10 max-w-3xl mx-auto text-center">
-              <div className="inline-flex items-center gap-2 text-xs font-medium text-[#a78bfa] bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 rounded-full px-4 py-2 mb-8">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#8b5cf6]" />
-                100 emails offerts · Sans carte bancaire
-              </div>
-              <h2 className="text-4xl md:text-5xl font-bold text-white mb-5 leading-tight">
-                Lance ta première campagne<br />
-                <span className="gradient-text">aujourd&apos;hui.</span>
-              </h2>
-              <p className="text-[#94a3b8] mb-10 max-w-lg mx-auto">
-                Connecte Brevo en 5 minutes, importe tes contacts, et envoie ton premier email de prospection ce soir.
-              </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link href="/signup" className="btn-primary px-8 py-4 text-base inline-block">
-                  Créer mon compte gratuit →
-                </Link>
-                <Link href="/pricing" className="btn-ghost px-8 py-4 text-base inline-block text-[#94a3b8]">
-                  Voir les tarifs
-                </Link>
+        <section className="py-28 px-6 border-t border-[#1e1e3f]">
+          <FadeUp>
+            <div className="max-w-6xl mx-auto">
+              <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-8">
+                <div>
+                  <p className="text-xs font-mono text-[#8b5cf6] uppercase tracking-[0.2em] mb-6">Prêt ?</p>
+                  <h2 className="text-5xl md:text-7xl font-black leading-[0.95] tracking-[-0.04em] text-white">
+                    Lance ta première<br />campagne ce soir.
+                  </h2>
+                </div>
+                <div className="flex flex-col gap-4 md:items-end shrink-0">
+                  <Link href="/signup" className="inline-flex items-center gap-2 bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-semibold px-7 py-4 rounded-lg transition-colors text-sm">
+                    Créer mon compte gratuit
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                  </Link>
+                  <p className="text-xs font-mono text-[#334155]">100 EMAILS OFFERTS · SANS CARTE BANCAIRE</p>
+                </div>
               </div>
             </div>
-          </section>
-        </ScaleIn>
+          </FadeUp>
+        </section>
 
       </main>
       <MarketingFooter />

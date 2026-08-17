@@ -31,7 +31,11 @@ Brevo · Mailgun · SendGrid · AWS SES
 Brevo, Mailgun, SendGrid ou AWS SES. Connecte en 5 min avec ta clé API. Chaque utilisateur a son infrastructure isolée.
 
 ### Warmup automatique
-Montée en charge progressive sur 14 jours. Volume augmente chaque jour selon un schedule calibré pour maximiser la réputation d'envoi.
+Deux modes disponibles :
+- **Progressif (recommandé)** : 40 jours, volume 5→15→21→30→+5%/jour. Protection maximale, idéal pour tout domaine.
+- **Accéléré** : 14 jours, volume 5→19→22→50→+10%/jour. Plus rapide, recommandé pour domaines établis (>30 jours).
+
+Chaque domaine d'envoi dans une campagne multi-domaines reçoit 3 variantes de messages dédiées, indexées par domaine.
 
 ### Rédaction IA
 L'IA génère ton email de prospection selon ta cible et ton secteur. Objet, intro, CTA — en quelques secondes.
@@ -216,6 +220,6 @@ Email : hello@weeral.co
 **Contact** : hello@weeral.co
 **Langue** : Français (marché principal France/francophonie)
 **Catégorie** : SaaS B2B, outreach commercial, email marketing
-**Stack** : Next.js 15, Supabase, Vercel, Trigger.dev
+**Stack** : Next.js, Supabase, Vercel, Trigger.dev
 **Expéditeurs supportés** : Brevo, Mailgun, SendGrid, AWS SES
 **Modèle** : BYOA (Bring Your Own Account) — abonnement fixe + frais expéditeur directs

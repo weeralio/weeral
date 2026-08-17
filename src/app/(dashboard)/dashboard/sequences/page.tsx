@@ -9,27 +9,32 @@ export default async function SequencesPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   const { data: sequences } = await supabase
-    .from('sequences')
-    .select('id, name, description, goal, steps_count, created_at')
+    .from('seq')
+    .select('id, name, description, goal, created_at')
     .eq('user_id', user!.id)
     .order('created_at', { ascending: false })
 
-  // Enrollment stats per sequence
   const seqIds = sequences?.map(s => s.id) ?? []
-  const { data: enrollments } = seqIds.length > 0
-    ? await supabase
-        .from('sequence_enrollments')
-        .select('sequence_id, status')
-        .in('sequence_id', seqIds)
-    : { data: [] }
+  const [{ data: enrollments }, { data: stepCounts }] = await Promise.all([
+    seqIds.length > 0
+      ? supabase.from('seq_enrollment').select('seq_id, status').in('seq_id', seqIds)
+      : Promise.resolve({ data: [] }),
+    seqIds.length > 0
+      ? supabase.from('seq_step').select('seq_id').in('seq_id', seqIds)
+      : Promise.resolve({ data: [] }),
+  ])
 
-  type Stats = { active: number; completed: number; total: number }
+  type Stats = { active: number; completed: number; total: number; steps: number }
   const statsMap: Record<string, Stats> = {}
-  for (const e of enrollments ?? []) {
-    if (!statsMap[e.sequence_id]) statsMap[e.sequence_id] = { active: 0, completed: 0, total: 0 }
-    statsMap[e.sequence_id].total++
-    if (e.status === 'active') statsMap[e.sequence_id].active++
-    if (e.status === 'completed') statsMap[e.sequence_id].completed++
+  for (const e of (enrollments ?? []) as Array<{ seq_id: string; status: string }>) {
+    if (!statsMap[e.seq_id]) statsMap[e.seq_id] = { active: 0, completed: 0, total: 0, steps: 0 }
+    statsMap[e.seq_id].total++
+    if (e.status === 'active')    statsMap[e.seq_id].active++
+    if (e.status === 'completed') statsMap[e.seq_id].completed++
+  }
+  for (const s of (stepCounts ?? []) as Array<{ seq_id: string }>) {
+    if (!statsMap[s.seq_id]) statsMap[s.seq_id] = { active: 0, completed: 0, total: 0, steps: 0 }
+    statsMap[s.seq_id].steps++
   }
 
   return (
@@ -84,7 +89,7 @@ export default async function SequencesPage() {
                         <div className="flex items-center gap-5 text-xs flex-wrap">
                           <div className="flex items-center gap-1.5">
                             <span className="text-[#475569]">Étapes</span>
-                            <strong className="text-white">{seq.steps_count}</strong>
+                            <strong className="text-white">{(statsMap[seq.id] ?? { steps: 0 }).steps}</strong>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <div className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />

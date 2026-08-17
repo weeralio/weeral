@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/crypto'
 import { getSESClient, sendEmail as sesSendEmail } from '@/lib/ses'
-import { openPixelUrl, clickTrackUrl } from '@/lib/tokens'
+import { openPixelUrl, clickTrackUrl, sendOpenPixelUrl, sendClickTrackUrl } from '@/lib/tokens'
 
 export interface MailParams {
   from: string
@@ -12,8 +12,12 @@ export interface MailParams {
   htmlBody: string
   textBody?: string
   unsubscribeUrl?: string
-  /** Pass contactId + campaignId to enable open/click tracking */
+  /** Legacy tracking (campagnes classiques via table emails) */
   tracking?: { contactId: string; campaignId: string }
+  /** Tracking unifié via sends.id — prioritaire sur tracking si les deux sont présents */
+  sendTracking?: { sendId: string }
+  /** Région Mailgun fixe — évite le fallback 401/404 qui masque les erreurs d'auth */
+  mailgunRegion?: 'us' | 'eu'
 }
 
 export async function sendViaProvider(userId: string, params: MailParams): Promise<string> {
@@ -62,19 +66,24 @@ function prepareHtml(params: MailParams): string {
   let html = params.htmlBody
 
   // Rewrite external links for click tracking (skip unsubscribe links)
-  if (params.tracking) {
-    const { contactId, campaignId } = params.tracking
+  // sendTracking (sends.id) takes priority over legacy tracking
+  const activeTracking = params.sendTracking
+    ? { rewriteLink: (url: string) => sendClickTrackUrl(url, params.sendTracking!.sendId) }
+    : params.tracking
+    ? { rewriteLink: (url: string) => clickTrackUrl(url, params.tracking!.contactId, params.tracking!.campaignId) }
+    : null
 
+  if (activeTracking) {
     // Pass 1: existing href attributes
     html = html.replace(/href=(["'])(https?:\/\/[^"'>\s]+)\1/gi, (match, quote, url: string) => {
       if (url.includes('/unsubscribe')) return match
-      return `href=${quote}${clickTrackUrl(url, contactId, campaignId)}${quote}`
+      return `href=${quote}${activeTracking.rewriteLink(url)}${quote}`
     })
 
     // Pass 2: plain-text URLs in text content (preceded by space, start, or tag boundary)
     html = html.replace(/(^|[\s>])(https?:\/\/[^\s<>"']+)/gi, (match, prefix, url: string) => {
       if (url.includes('/unsubscribe')) return match
-      return `${prefix}<a href="${clickTrackUrl(url, contactId, campaignId)}">${url}</a>`
+      return `${prefix}<a href="${activeTracking.rewriteLink(url)}">${url}</a>`
     })
   }
 
@@ -86,7 +95,9 @@ function prepareHtml(params: MailParams): string {
   }
 
   // Open tracking pixel — at the very end of the body
-  if (params.tracking) {
+  if (params.sendTracking) {
+    html += `<img src="${sendOpenPixelUrl(params.sendTracking.sendId)}" width="1" height="1" style="display:none" alt="">`
+  } else if (params.tracking) {
     const { contactId, campaignId } = params.tracking
     html += `<img src="${openPixelUrl(contactId, campaignId)}" width="1" height="1" style="display:none" alt="">`
   }
@@ -153,10 +164,24 @@ async function sendViaMailgun(apiKey: string, params: MailParams): Promise<strin
   }
   const body = form.toString()
 
-  // Try US region first, fall back to EU
+  // Région fixe si fournie (mode drain — pas de fallback pour ne pas masquer les erreurs d'auth)
+  if (params.mailgunRegion) {
+    const base = params.mailgunRegion === 'eu'
+      ? 'https://api.eu.mailgun.net'
+      : 'https://api.mailgun.net'
+    const res = await fetch(`${base}/v3/${domain}/messages`, { method: 'POST', headers, body })
+    if (!res.ok) {
+      const err = await res.text()
+      throw new Error(`Mailgun ${res.status} (${params.mailgunRegion.toUpperCase()}): ${err}`)
+    }
+    const json = await res.json() as { id?: string }
+    return (json.id ?? '').replace(/^<|>$/g, '')
+  }
+
+  // Fallback US→EU pour les anciens appelants sans région configurée
   for (const base of ['https://api.mailgun.net', 'https://api.eu.mailgun.net']) {
     const res = await fetch(`${base}/v3/${domain}/messages`, { method: 'POST', headers, body })
-    if ((res.status === 401 || res.status === 404) && base === 'https://api.mailgun.net') continue // try EU (domain may be EU-only → 404 on US)
+    if ((res.status === 401 || res.status === 404) && base === 'https://api.mailgun.net') continue
     if (!res.ok) {
       const err = await res.text()
       throw new Error(`Mailgun error ${res.status}: ${err} (domain: ${domain}, region: ${base.includes('.eu.') ? 'EU' : 'US'})`)

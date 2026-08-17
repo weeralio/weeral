@@ -1,61 +1,52 @@
 import { createServiceClient } from '@/lib/supabase/server'
-import { verifyTrackingToken } from '@/lib/tokens'
+import { verifyTrackingToken, verifySendTrackingToken } from '@/lib/tokens'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const cid    = searchParams.get('cid')
-  const cmpid  = searchParams.get('cmpid')
+  const sid    = searchParams.get('sid')    // format unifié (sends.id)
+  const cid    = searchParams.get('cid')    // format legacy
+  const cmpid  = searchParams.get('cmpid')  // format legacy
   const token  = searchParams.get('t')
   const rawUrl = searchParams.get('url')
 
-  // Always redirect — tracking is best-effort
   const destination = rawUrl ? decodeURIComponent(rawUrl) : '/'
 
-  if (!cid || !cmpid || !token || !rawUrl) return NextResponse.redirect(destination)
-  if (!verifyTrackingToken(`${cid}:${cmpid}`, token)) return NextResponse.redirect(destination)
+  if (!token || !rawUrl) return NextResponse.redirect(destination)
 
   try {
-    const supabase = createServiceClient()
-    const clickedAt = new Date().toISOString()
+    const supabase   = createServiceClient()
+    const clickedAt  = new Date().toISOString()
 
-    // Campagnes classiques : mise à jour de la table emails
-    const { data: rows } = await supabase
-      .from('emails')
-      .select('id, status')
-      .eq('contact_id', cid)
-      .eq('campaign_id', cmpid)
-      .in('status', ['sent', 'opened'])
-      .limit(1)
-
-    const email = rows?.[0]
-    if (email) {
+    // ── Format unifié : ?sid=sendId ───────────────────────────────────────────
+    if (sid && verifySendTrackingToken(sid, token)) {
       await supabase
-        .from('emails')
-        .update({ status: 'clicked', clicked_at: clickedAt })
-        .eq('id', email.id)
+        .from('sends')
+        .update({ clicked_at: clickedAt })
+        .eq('id', sid)
+        .is('clicked_at', null)
+      return NextResponse.redirect(destination)
     }
 
-    // Séquences : cmpid = enrollment.id — mise à jour du dernier envoi de séquence
-    if (!email) {
-      const { data: seqRows } = await supabase
-        .from('sequence_sends')
-        .select('id')
-        .eq('enrollment_id', cmpid)
-        .is('clicked_at', null)
-        .order('sent_at', { ascending: false })
+    // ── Format legacy : ?cid=...&cmpid=... ────────────────────────────────────
+    if (cid && cmpid && verifyTrackingToken(`${cid}:${cmpid}`, token)) {
+      const { data: rows } = await supabase
+        .from('emails')
+        .select('id, status')
+        .eq('contact_id', cid)
+        .eq('campaign_id', cmpid)
+        .in('status', ['sent', 'opened'])
         .limit(1)
 
-      const seqSend = seqRows?.[0]
-      if (seqSend) {
+      if (rows?.[0]) {
         await supabase
-          .from('sequence_sends')
-          .update({ clicked_at: clickedAt })
-          .eq('id', seqSend.id)
+          .from('emails')
+          .update({ status: 'clicked', clicked_at: clickedAt })
+          .eq('id', rows[0].id)
       }
     }
   } catch {
-    // Never block redirect on DB errors
+    // Ne jamais bloquer la redirection sur une erreur DB
   }
 
   return NextResponse.redirect(destination)

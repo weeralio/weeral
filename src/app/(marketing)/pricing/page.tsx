@@ -12,12 +12,34 @@ export const metadata: Metadata = {
     url: 'https://weeral.io/pricing',
     title: 'Tarifs — Weeral',
     description: 'Starter 147€/mois · Growth 197€/mois · Agency 347€/mois. −40% en annuel. Aucun frais par email.',
+    images: [
+      {
+        url: 'https://weeral.io/pricing/opengraph-image',
+        width: 1200,
+        height: 630,
+        alt: 'Tarifs Weeral — Starter, Growth, Agency',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Tarifs — Weeral',
+    description: 'Starter 147€/mois · Growth 197€/mois · Agency 347€/mois. −40% en annuel.',
+    images: ['https://weeral.io/pricing/opengraph-image'],
   },
 }
 
 export default function PricingPage() {
   return (
     <>
+      <JsonLd data={{
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Accueil', item: 'https://weeral.io' },
+          { '@type': 'ListItem', position: 2, name: 'Tarifs', item: 'https://weeral.io/pricing' },
+        ],
+      }} />
       <JsonLd data={{
         '@context': 'https://schema.org',
         '@type': 'Product',

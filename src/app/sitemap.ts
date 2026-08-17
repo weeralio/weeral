@@ -2,13 +2,15 @@ import { MetadataRoute } from 'next'
 
 const BASE = 'https://weeral.io'
 
+// Pages indexées avec priorité et fréquence de mise à jour calibrées
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
+    // ── Pages principales ─────────────────────────────────────────────────────
     {
       url: BASE,
       lastModified: new Date(),
       changeFrequency: 'weekly',
-      priority: 1,
+      priority: 1.0,
     },
     {
       url: `${BASE}/pricing`,
@@ -22,21 +24,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'monthly',
       priority: 0.7,
     },
-    {
-      url: `${BASE}/mentions-legales`,
-      lastModified: new Date(),
-      changeFrequency: 'yearly',
-      priority: 0.3,
-    },
+
+    // ── Légal ─────────────────────────────────────────────────────────────────
+    // Note : mentions-legales est noindex — exclue délibérément du sitemap
     {
       url: `${BASE}/confidentialite`,
-      lastModified: new Date(),
+      lastModified: new Date('2024-01-01'),
       changeFrequency: 'yearly',
       priority: 0.3,
     },
     {
       url: `${BASE}/cgv`,
-      lastModified: new Date(),
+      lastModified: new Date('2024-01-01'),
       changeFrequency: 'yearly',
       priority: 0.3,
     },

@@ -1,68 +1,59 @@
 import { createServiceClient } from '@/lib/supabase/server'
-import { verifyTrackingToken } from '@/lib/tokens'
+import { verifyTrackingToken, verifySendTrackingToken } from '@/lib/tokens'
 import { NextResponse } from 'next/server'
 
-// 1×1 transparent GIF
 const PIXEL = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64')
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const cid   = searchParams.get('cid')
-  const cmpid = searchParams.get('cmpid')
+  const sid   = searchParams.get('sid')    // format unifié (sends.id)
+  const cid   = searchParams.get('cid')    // format legacy (contactId)
+  const cmpid = searchParams.get('cmpid')  // format legacy (campaignId)
   const token = searchParams.get('t')
 
   const pixel = new NextResponse(PIXEL, {
     headers: {
-      'Content-Type': 'image/gif',
+      'Content-Type':  'image/gif',
       'Cache-Control': 'no-store, no-cache, must-revalidate',
-      'Pragma': 'no-cache',
+      'Pragma':        'no-cache',
     },
   })
 
-  if (!cid || !cmpid || !token) return pixel
-  if (!verifyTrackingToken(`${cid}:${cmpid}`, token)) return pixel
+  if (!token) return pixel
 
   try {
-    const supabase = createServiceClient()
-    const openedAt = new Date().toISOString()
+    const supabase  = createServiceClient()
+    const openedAt  = new Date().toISOString()
 
-    // Campagnes classiques : mise à jour de la table emails
-    const { data: rows } = await supabase
-      .from('emails')
-      .select('id, status')
-      .eq('contact_id', cid)
-      .eq('campaign_id', cmpid)
-      .eq('status', 'sent')
-      .limit(1)
-
-    const email = rows?.[0]
-    if (email) {
+    // ── Format unifié : ?sid=sendId ───────────────────────────────────────────
+    if (sid && verifySendTrackingToken(sid, token)) {
       await supabase
-        .from('emails')
-        .update({ status: 'opened', opened_at: openedAt })
-        .eq('id', email.id)
+        .from('sends')
+        .update({ opened_at: openedAt })
+        .eq('id', sid)
+        .is('opened_at', null)
+      return pixel
     }
 
-    // Séquences : cmpid = enrollment.id — mise à jour du dernier envoi de séquence
-    if (!email) {
-      const { data: seqRows } = await supabase
-        .from('sequence_sends')
-        .select('id')
-        .eq('enrollment_id', cmpid)
-        .is('opened_at', null)
-        .order('sent_at', { ascending: false })
+    // ── Format legacy : ?cid=...&cmpid=... ────────────────────────────────────
+    if (cid && cmpid && verifyTrackingToken(`${cid}:${cmpid}`, token)) {
+      const { data: rows } = await supabase
+        .from('emails')
+        .select('id, status')
+        .eq('contact_id', cid)
+        .eq('campaign_id', cmpid)
+        .eq('status', 'sent')
         .limit(1)
 
-      const seqSend = seqRows?.[0]
-      if (seqSend) {
+      if (rows?.[0]) {
         await supabase
-          .from('sequence_sends')
-          .update({ opened_at: openedAt })
-          .eq('id', seqSend.id)
+          .from('emails')
+          .update({ status: 'opened', opened_at: openedAt })
+          .eq('id', rows[0].id)
       }
     }
   } catch {
-    // Never block pixel delivery on DB errors
+    // Ne jamais bloquer la livraison du pixel sur une erreur DB
   }
 
   return pixel

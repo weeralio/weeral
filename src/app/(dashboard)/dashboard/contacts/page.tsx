@@ -23,7 +23,7 @@ export default async function ContactsPage({
   // ─── Build contacts query ─────────────────────────────────────────────────
   let query = supabase
     .from('contacts')
-    .select('id, email, first_name, last_name, company, unsubscribed, created_at', { count: 'exact' })
+    .select('id, email, first_name, last_name, company, prospect_status, unsubscribed, created_at', { count: 'exact' })
     .eq('user_id', user!.id)
 
   if (search) {

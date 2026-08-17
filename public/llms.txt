@@ -1,6 +1,6 @@
 # Weeral
 
-> SaaS de cold email B2B avec le modèle BYOA (Bring Your Own Account). Les utilisateurs connectent leur propre compte Brevo, Mailgun, SendGrid ou AWS SES et gèrent leurs campagnes de prospection depuis une interface unifiée, avec warmup automatique, rédaction IA et analytics en temps réel.
+> SaaS de cold email B2B avec le modèle BYOA (Bring Your Own Account). Les utilisateurs connectent leur propre compte Brevo, Mailgun, SendGrid ou AWS SES et gèrent leurs campagnes de prospection depuis une interface unifiée, avec warmup automatique (modes Progressif 40j ou Accéléré 14j), rédaction IA et analytics en temps réel.
 
 ## Pages principales
 
@@ -13,6 +13,15 @@
 - [Mentions légales](https://weeral.io/mentions-legales): Informations légales de l'éditeur.
 - [Politique de confidentialité](https://weeral.io/confidentialite): Données collectées, hébergement, droits RGPD.
 - [CGV](https://weeral.io/cgv): Conditions générales de vente, abonnements, résiliation.
+
+## Fonctionnalité clé : Warmup automatique
+
+Deux modes de warmup disponibles :
+
+- **Progressif (recommandé)** : 40 jours, montée en charge douce de 5 à 30+ emails/jour (+5%/jour après J21). Idéal pour tout domaine, protection maximale de la réputation d'envoi.
+- **Accéléré** : 14 jours, volume 5→50 emails/jour (+10%/jour). Résultats plus rapides, recommandé pour les domaines déjà établis.
+
+Chaque domaine d'envoi dans une campagne multi-domaines reçoit 3 variantes de messages dédiées, indexées par domaine, pour une diversification maximale du contenu.
 
 ## Données structurées complètes
 

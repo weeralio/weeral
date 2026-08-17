@@ -1,23 +1,60 @@
+import type { Metadata } from 'next'
+import Link from 'next/link'
+import { WeeralIcon } from '@/components/ui/weeral-logo'
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+}
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#07070f] px-4 relative overflow-hidden">
-      {/* Background orbs */}
-      <div className="orb orb-purple w-[500px] h-[500px] -top-40 -left-40 opacity-30" />
-      <div className="orb orb-blue w-[400px] h-[400px] -bottom-32 -right-32 opacity-25" />
-      <div className="grid-pattern absolute inset-0" />
+    <div className="min-h-screen bg-[#07070f] flex">
+      {/* Left panel — brand */}
+      <div className="hidden lg:flex flex-col justify-between w-[420px] shrink-0 border-r border-[#1e1e3f] px-10 py-10">
+        <Link href="/" className="flex items-center gap-2.5">
+          <WeeralIcon size={28} />
+          <span className="font-bold text-white tracking-tight">Weeral</span>
+        </Link>
 
-      {/* Logo top */}
-      <div className="absolute top-6 left-6 flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-violet-700 flex items-center justify-center shadow-[0_0_12px_rgba(139,92,246,0.5)]">
-          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
+        <div>
+          <p className="text-xs font-mono text-[#8b5cf6] uppercase tracking-[0.2em] mb-6">Infrastructure cold email</p>
+          <blockquote className="text-2xl font-black leading-tight tracking-[-0.03em] text-white mb-8">
+            Warmup. Séquences.<br />Délivrabilité.<br />
+            <span className="text-[#8b5cf6]">Ton infra.</span>
+          </blockquote>
+          <div className="space-y-3">
+            {[
+              'Warmup automatique 14 ou 40 jours',
+              'BYOA — ton expéditeur, ta réputation',
+              'Séquences multi-étapes sur pilote',
+              '100 emails offerts sans carte bancaire',
+            ].map(f => (
+              <div key={f} className="flex items-center gap-3 text-sm text-[#64748b]">
+                <span className="text-[#8b5cf6] font-mono shrink-0">—</span>
+                {f}
+              </div>
+            ))}
+          </div>
         </div>
-        <span className="font-semibold text-white">Weeral</span>
+
+        <p className="text-xs font-mono text-[#334155]">© {new Date().getFullYear()} WEERAL</p>
       </div>
 
-      <div className="relative z-10 w-full">
-        {children}
+      {/* Right — form */}
+      <div className="flex-1 flex flex-col">
+        {/* Mobile logo */}
+        <div className="lg:hidden flex items-center gap-2 px-6 pt-6">
+          <Link href="/" className="flex items-center gap-2">
+            <WeeralIcon size={24} />
+            <span className="font-bold text-white text-sm">Weeral</span>
+          </Link>
+        </div>
+
+        <div className="flex-1 flex items-center justify-center px-6 py-12">
+          <div className="w-full max-w-sm">
+            {children}
+          </div>
+        </div>
       </div>
     </div>
   )

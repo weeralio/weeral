@@ -79,6 +79,25 @@ export async function importContacts(prevState: State, formData: FormData): Prom
 
   if (!contacts.length) return { error: 'Aucun contact valide trouvé' }
 
+  // Resolve list assignment
+  const targetListId  = (formData.get('target_list_id') as string | null) || null
+  const newListName   = (formData.get('new_list_name')  as string | null)?.trim() || null
+  const newListColor  = (formData.get('new_list_color') as string | null) || '#8b5cf6'
+
+  let listId: string | null = targetListId
+
+  if (newListName) {
+    const { data: list, error: listErr } = await supabase
+      .from('contact_lists')
+      .insert({ user_id: user.id, name: newListName, color: newListColor })
+      .select('id')
+      .single()
+    if (listErr) return { error: `Erreur création liste : ${listErr.message}` }
+    listId = list.id
+  }
+
+  // Upsert contacts
+  const emails = contacts.map(c => c.email)
   let imported = 0
   for (let i = 0; i < contacts.length; i += 500) {
     const { error } = await supabase
@@ -88,8 +107,30 @@ export async function importContacts(prevState: State, formData: FormData): Prom
     imported += Math.min(500, contacts.length - i)
   }
 
+  // Link contacts to list if requested
+  if (listId) {
+    const allIds: string[] = []
+    for (let i = 0; i < emails.length; i += 500) {
+      const { data: rows } = await supabase
+        .from('contacts')
+        .select('id')
+        .eq('user_id', user.id)
+        .in('email', emails.slice(i, i + 500))
+      allIds.push(...(rows?.map(r => r.id) ?? []))
+    }
+    for (let i = 0; i < allIds.length; i += 500) {
+      await supabase
+        .from('contact_list_members')
+        .upsert(
+          allIds.slice(i, i + 500).map(id => ({ list_id: listId!, contact_id: id })),
+          { onConflict: 'list_id,contact_id', ignoreDuplicates: true }
+        )
+    }
+  }
+
   revalidatePath('/dashboard/contacts')
-  return { success: `${imported} contacts importés.` }
+  const listSuffix = listId ? (newListName ? ` et ajoutés à « ${newListName} »` : ' et ajoutés à la liste') : ''
+  return { success: `${imported} contacts importés${listSuffix}.` }
 }
 
 // ─── Delete contacts (single or bulk) ────────────────────────────────────────
@@ -125,26 +166,41 @@ export async function exportContactsCSV(listId?: string): Promise<{ error?: stri
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
 
-  let query = supabase
-    .from('contacts')
-    .select('email, first_name, last_name, company, unsubscribed, created_at')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
+  type Row = { email: string; first_name: string | null; last_name: string | null; company: string | null; unsubscribed: boolean; created_at: string }
+  const allData: Row[] = []
+  let offset = 0
 
-  if (listId) {
-    const { data: memberIds } = await supabase
-      .from('contact_list_members')
-      .select('contact_id')
-      .eq('list_id', listId)
-    const ids = memberIds?.map(m => m.contact_id) ?? []
-    if (!ids.length) return { csv: 'email,first_name,last_name,company,unsubscribed\n', filename: 'contacts.csv' }
-    query = query.in('id', ids)
+  // Use !inner join when filtering by list — avoids loading all member IDs into memory
+  // and handles lists larger than the 1000-row PostgREST default limit correctly.
+  const selectCols = listId
+    ? 'email, first_name, last_name, company, unsubscribed, created_at, contact_list_members!inner(list_id)'
+    : 'email, first_name, last_name, company, unsubscribed, created_at'
+
+  while (true) {
+    // Build a fresh query each iteration — the range() changes, everything else is stable
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = supabase
+      .from('contacts')
+      .select(selectCols)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + 999)
+
+    if (listId) q = q.eq('contact_list_members.list_id', listId)
+
+    const { data, error } = await q
+    if (error) return { error: error.message }
+    if (!data?.length) break
+    allData.push(...(data as Row[]))
+    if (data.length < 1000) break
+    offset += 1000
   }
 
-  const { data, error } = await query
-  if (error) return { error: error.message }
+  if (!allData.length) {
+    return { csv: 'email,first_name,last_name,company,desabonne,date_ajout\n', filename: 'contacts.csv' }
+  }
 
-  const rows = (data ?? []).map(c => [
+  const rows = allData.map(c => [
     c.email,
     c.first_name ?? '',
     c.last_name ?? '',
@@ -156,6 +212,67 @@ export async function exportContactsCSV(listId?: string): Promise<{ error?: stri
   const csv = ['email,first_name,last_name,company,desabonne,date_ajout', ...rows].join('\n')
   const filename = `contacts-${new Date().toISOString().split('T')[0]}.csv`
   return { csv, filename }
+}
+
+// ─── Get all contact IDs matching current filter (for select-all-matching) ───
+
+export async function getFilteredContactIds(params: {
+  search?: string
+  status?: string
+  listId?: string
+}): Promise<{ error?: string; ids?: string[] }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  // Resolve list member IDs first if needed (paginated)
+  let memberIds: string[] | null = null
+  if (params.listId) {
+    memberIds = []
+    let mOffset = 0
+    while (true) {
+      const { data } = await supabase
+        .from('contact_list_members')
+        .select('contact_id')
+        .eq('list_id', params.listId)
+        .range(mOffset, mOffset + 999)
+      if (!data?.length) break
+      memberIds.push(...data.map(m => m.contact_id))
+      if (data.length < 1000) break
+      mOffset += 1000
+    }
+    if (!memberIds.length) return { ids: [] }
+  }
+
+  // Paginate through all matching contact IDs
+  const allIds: string[] = []
+  let offset = 0
+
+  while (true) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = supabase
+      .from('contacts')
+      .select('id')
+      .eq('user_id', user.id)
+      .range(offset, offset + 999)
+
+    if (params.search) {
+      const safe = params.search.replace(/[%_(),\\]/g, '')
+      q = q.or(`email.ilike.%${safe}%,first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,company.ilike.%${safe}%`)
+    }
+    if (params.status === 'active')       q = q.eq('unsubscribed', false)
+    if (params.status === 'unsubscribed') q = q.eq('unsubscribed', true)
+    if (memberIds)                        q = q.in('id', memberIds)
+
+    const { data, error } = await q
+    if (error) return { error: error.message }
+    if (!data?.length) break
+    allIds.push(...(data as { id: string }[]).map(r => r.id))
+    if (data.length < 1000) break
+    offset += 1000
+  }
+
+  return { ids: allIds }
 }
 
 // ─── Contact lists ────────────────────────────────────────────────────────────
@@ -231,6 +348,62 @@ export async function removeContactsFromList(listId: string, contactIds: string[
   if (error) return { error: error.message }
   revalidatePath('/dashboard/contacts')
   return {}
+}
+
+// ─── Prospect status ──────────────────────────────────────────────────────────
+
+export async function setProspectStatus(
+  contactId: string,
+  status: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { error } = await supabase.from('contacts')
+    .update({ prospect_status: status })
+    .eq('id', contactId)
+    .eq('user_id', user.id)
+
+  if (error) return { error: error.message }
+  revalidatePath('/dashboard/contacts')
+  return {}
+}
+
+export async function bulkSetProspectStatus(
+  contactIds: string[],
+  newStatus: string,
+): Promise<{ error?: string; updated?: number }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { data, error } = await supabase.rpc('bulk_set_prospect_status', {
+    p_contact_ids: contactIds,
+    p_new_status:  newStatus,
+  })
+
+  if (error) return { error: error.message }
+  revalidatePath('/dashboard/contacts')
+  return { updated: (data as { updated?: number } | null)?.updated }
+}
+
+export async function bulkCancelContactSequences(
+  contactIds: string[],
+): Promise<{ error?: string; stopped?: number; cancelling?: number }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { data, error } = await supabase.rpc('bulk_cancel_contact_sequences', {
+    p_contact_ids: contactIds,
+    p_stop_reason: 'manual',
+  })
+
+  if (error) return { error: error.message }
+  revalidatePath('/dashboard/contacts')
+  const result = data as { stopped_enrollments?: number; cancelled_sends?: number } | null
+  return { stopped: result?.stopped_enrollments, cancelling: result?.cancelled_sends }
 }
 
 // ─── SES email verification ───────────────────────────────────────────────────

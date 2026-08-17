@@ -110,7 +110,7 @@ function PaymentForm({
       <button
         type="submit"
         disabled={loading || !stripe || !cgv}
-        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white font-semibold text-sm hover:from-[#6d28d9] hover:to-[#7c3aed] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_20px_rgba(139,92,246,0.3)] flex items-center justify-center gap-2"
+        className="w-full py-3.5 rounded-lg bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
       >
         {loading ? (
           <>
@@ -150,7 +150,7 @@ interface PromoInfo {
 export default function CheckoutForm({ plan, billing, userEmail }: Props) {
   const router = useRouter()
   const meta  = PLAN_META[plan]
-  const price = billing === 'annual' ? meta.annualPrice : meta.monthlyPrice
+  const price = billing === 'annual' ? meta.annualPrice : billing === 'quarterly' ? meta.quarterlyPrice : meta.monthlyPrice
 
   const [email,          setEmail]          = useState(userEmail ?? '')
   const [clientSecret,   setClientSecret]   = useState<string | null>(null)
@@ -244,25 +244,30 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
       <div className="w-full max-w-md">
 
         {/* Header */}
-        <div className="text-center mb-8">
-          <Link href="/pricing" className="inline-flex items-center gap-1.5 text-xs text-[#475569] hover:text-[#94a3b8] mb-6 transition-colors">
+        <div className="mb-10">
+          <Link href="/pricing" className="inline-flex items-center gap-1.5 text-xs font-mono text-[#334155] hover:text-[#94a3b8] mb-8 transition-colors uppercase tracking-widest">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M11 17l-5-5m0 0l5-5m-5 5h12" />
             </svg>
             Retour aux offres
           </Link>
-          <h1 className="text-2xl font-bold text-white mb-1">Finaliser l&apos;abonnement</h1>
-          <p className="text-[#475569] text-sm">Paiement sécurisé · Sans engagement pour le mensuel</p>
+          <p className="text-xs font-mono text-[#8b5cf6] uppercase tracking-[0.2em] mb-3">Paiement</p>
+          <h1 className="text-3xl font-black tracking-[-0.03em] text-white mb-1">Finaliser l&apos;abonnement.</h1>
+          <p className="text-sm text-[#475569] font-mono">Sécurisé par Stripe · Sans engagement</p>
         </div>
 
         {/* Plan summary */}
         <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-5 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-[#475569] uppercase tracking-wider mb-1">Plan choisi</p>
+              <p className="text-xs font-mono text-[#334155] uppercase tracking-[0.2em] mb-1">Plan choisi</p>
               <p className="text-white font-semibold">{meta.name}</p>
               <p className="text-xs text-[#475569] mt-0.5">
-                {billing === 'annual' ? `Facturé ${meta.annualTotal}€/an` : 'Facturé chaque mois'}
+                {billing === 'annual'
+                  ? `Facturé ${meta.annualTotal}€/an`
+                  : billing === 'quarterly'
+                  ? `Facturé ${meta.quarterlyTotal}€ tous les 3 mois`
+                  : 'Facturé chaque mois'}
               </p>
             </div>
             <div className="text-right">
@@ -278,6 +283,9 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
               {billing === 'annual' && !discountedPrice && (
                 <p className="text-xs text-emerald-400 mt-0.5">-40% économisé</p>
               )}
+              {billing === 'quarterly' && !discountedPrice && (
+                <p className="text-xs text-sky-400 mt-0.5">-25% économisé</p>
+              )}
               {promoInfo && discountedPrice !== null && (
                 <p className="text-xs text-emerald-400 mt-0.5">
                   {promoInfo.percentOff ? `-${promoInfo.percentOff}%` : `-${promoInfo.amountOff}€`} appliqué
@@ -291,7 +299,7 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
         {!clientSecret && (
           <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-6 space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-2">
+              <label className="block text-xs font-mono text-[#475569] uppercase tracking-widest mb-2">
                 Adresse email
               </label>
               <input
@@ -299,7 +307,7 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="vous@entreprise.com"
-                className="w-full bg-[#07070f] border border-[#1e1e3f] text-white rounded-xl px-4 py-3 text-sm placeholder-[#334155] focus:outline-none focus:border-[#8b5cf6]/60 focus:ring-1 focus:ring-[#8b5cf6]/30 transition-all"
+                className="w-full bg-[#07070f] border border-[#1e1e3f] text-white rounded-lg px-4 py-3 text-sm placeholder-[#334155] focus:outline-none focus:border-[#7c3aed] transition-colors"
                 onKeyDown={e => e.key === 'Enter' && startCheckout()}
               />
             </div>
@@ -319,7 +327,7 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
                 </button>
               ) : (
                 <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">
+                  <label className="block text-xs font-mono text-[#475569] uppercase tracking-widest">
                     Code promo
                   </label>
                   <div className="flex gap-2">
@@ -375,7 +383,7 @@ export default function CheckoutForm({ plan, billing, userEmail }: Props) {
             <button
               onClick={startCheckout}
               disabled={loading || !email}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white font-semibold text-sm hover:from-[#6d28d9] hover:to-[#7c3aed] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-lg bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>

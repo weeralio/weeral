@@ -36,12 +36,11 @@ function makeEmptyStep(stepNumber: number): GeneratedStep {
   }
 }
 
-export default function SequenceGenerator({ identities }: { identities: Identity[] }) {
+export default function SequenceGenerator({ identities: _identities }: { identities: Identity[] }) {
   const router = useRouter()
 
   const [mode, setMode] = useState<'ai' | 'manual'>('ai')
   const [name, setName] = useState('')
-  const [senderIdentityId, setSenderIdentityId] = useState(identities[0]?.id ?? '')
   const [goal, setGoal] = useState('')
   const [audience, setAudience] = useState('')
   const [tone, setTone] = useState('professionnel')
@@ -96,7 +95,7 @@ export default function SequenceGenerator({ identities }: { identities: Identity
     if (!name.trim() || steps.length === 0) return
     setError('')
     startSave(async () => {
-      const res = await createSequence(name, goal, description, steps, senderIdentityId || undefined)
+      const res = await createSequence(name, goal, description, steps)
       if (res.error) {
         setError(res.error)
       } else if (res.id) {
@@ -139,18 +138,6 @@ export default function SequenceGenerator({ identities }: { identities: Identity
                 placeholder="Ex: Prospection DRH Q2"
                 className="w-full px-3 py-2.5 rounded-xl bg-[#0a0a18] border border-[#1e1e3f] text-white text-sm placeholder-[#3b3b6f] focus:outline-none focus:border-violet-500/50 transition-colors"
               />
-            </div>
-
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-xs text-[#475569]">Adresse d&apos;envoi *</label>
-              {identities.length === 0 ? (
-                <p className="text-xs text-[#475569]">
-                  Aucune adresse configurée.{' '}
-                  <a href="/dashboard/domaines" className="text-violet-400 hover:text-violet-300 transition-colors">Ajouter un domaine →</a>
-                </p>
-              ) : (
-                <IdentityDropdown identities={identities} value={senderIdentityId} onChange={setSenderIdentityId} />
-              )}
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">

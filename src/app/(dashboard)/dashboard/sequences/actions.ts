@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { anthropic, MODELS } from '@/lib/anthropic'
 import { revalidatePath } from 'next/cache'
 
@@ -83,61 +83,71 @@ export async function createSequence(
   goal: string,
   description: string,
   steps: GeneratedStep[],
-  senderIdentityId?: string,
 ): Promise<{ error?: string; id?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
 
-  const { data: seq, error } = await supabase
-    .from('sequences')
-    .insert({
-      user_id: user.id,
-      name,
-      goal: goal || null,
-      description: description || null,
-      steps_count: steps.length,
-      sender_identity_id: senderIdentityId || null,
-    })
+  const { data: seqRow, error } = await supabase
+    .from('seq')
+    .insert({ user_id: user.id, name, goal: goal || null, description: description || null })
     .select('id')
     .single()
 
-  if (error || !seq) return { error: error?.message ?? 'Erreur création' }
+  if (error || !seqRow) return { error: error?.message ?? 'Erreur création' }
 
-  const { error: stepsError } = await supabase.from('sequence_steps').insert(
-    steps.map(s => ({
-      sequence_id: seq.id,
-      step_number: s.step_number,
-      delay_days: s.delay_days,
-      subject: s.subject,
-      body_html: s.body_html,
-      send_condition: s.send_condition,
-      objective: s.objective,
-      ai_tip: s.ai_tip,
-    }))
-  )
-
-  if (stepsError) return { error: stepsError.message }
+  if (steps.length > 0) {
+    const { error: stepsError } = await supabase.from('seq_step').insert(
+      steps.map(s => ({
+        seq_id: seqRow.id,
+        step_number: s.step_number,
+        delay_days: s.delay_days,
+        subject: s.subject,
+        body_html: s.body_html,
+        send_condition: s.send_condition,
+        objective: s.objective,
+        ai_tip: s.ai_tip,
+      }))
+    )
+    if (stepsError) return { error: stepsError.message }
+  }
 
   revalidatePath('/dashboard/sequences')
-  return { id: seq.id }
+  return { id: seqRow.id }
 }
 
-// ─── Update sequence sender identity ─────────────────────────────────────────
+// ─── Manage mailboxes assigned to a sequence ──────────────────────────────────
 
-export async function updateSequenceSender(
+export async function addSeqMailbox(
   sequenceId: string,
-  senderIdentityId: string,
+  mailboxId: string,
 ): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
 
   const { error } = await supabase
-    .from('sequences')
-    .update({ sender_identity_id: senderIdentityId })
-    .eq('id', sequenceId)
-    .eq('user_id', user.id)
+    .from('seq_mailbox')
+    .upsert({ seq_id: sequenceId, mailbox_id: mailboxId }, { ignoreDuplicates: true })
+
+  if (error) return { error: error.message }
+  revalidatePath(`/dashboard/sequences/${sequenceId}`)
+  return {}
+}
+
+export async function removeSeqMailbox(
+  sequenceId: string,
+  mailboxId: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { error } = await supabase
+    .from('seq_mailbox')
+    .delete()
+    .eq('seq_id', sequenceId)
+    .eq('mailbox_id', mailboxId)
 
   if (error) return { error: error.message }
   revalidatePath(`/dashboard/sequences/${sequenceId}`)
@@ -154,11 +164,11 @@ export async function updateStep(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
 
+  // RLS sur seq_step vérifie seq.user_id = auth.uid() — pas besoin de filtre manuel
   const { error } = await supabase
-    .from('sequence_steps')
+    .from('seq_step')
     .update(data)
     .eq('id', stepId)
-    .filter('sequence_id', 'in', `(SELECT id FROM sequences WHERE user_id = '${user.id}')`)
 
   if (error) return { error: error.message }
   revalidatePath('/dashboard/sequences')
@@ -172,19 +182,10 @@ export async function deleteStep(stepId: string, sequenceId: string): Promise<{ 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
 
-  // Verify sequence ownership before deleting a step
-  const { data: seq } = await supabase.from('sequences').select('id').eq('id', sequenceId).eq('user_id', user.id).single()
-  if (!seq) return { error: 'Séquence introuvable' }
+  const { data: seqCheck } = await supabase.from('seq').select('id').eq('id', sequenceId).eq('user_id', user.id).single()
+  if (!seqCheck) return { error: 'Séquence introuvable' }
 
-  await supabase.from('sequence_steps').delete().eq('id', stepId).eq('sequence_id', sequenceId)
-
-  // Recount and update steps_count
-  const { count } = await supabase
-    .from('sequence_steps')
-    .select('*', { count: 'exact', head: true })
-    .eq('sequence_id', sequenceId)
-
-  await supabase.from('sequences').update({ steps_count: count ?? 0 }).eq('id', sequenceId)
+  await supabase.from('seq_step').delete().eq('id', stepId).eq('seq_id', sequenceId)
 
   revalidatePath(`/dashboard/sequences/${sequenceId}`)
   return {}
@@ -195,13 +196,39 @@ export async function deleteStep(stepId: string, sequenceId: string): Promise<{ 
 export async function enrollContacts(
   sequenceId: string,
   listIds: string[],
-  senderIdentityId: string,
 ): Promise<{ error?: string; enrolled?: number }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
 
-  // Fetch contacts filtered by lists (or all active contacts if no lists selected)
+  // Verify ownership
+  const { data: seqRow } = await supabase.from('seq').select('id').eq('id', sequenceId).eq('user_id', user.id).single()
+  if (!seqRow) return { error: 'Séquence introuvable' }
+
+  // Load assigned mailboxes (round-robin source)
+  const { data: mailboxIds } = await supabase
+    .from('seq_mailbox')
+    .select('mailbox_id')
+    .eq('seq_id', sequenceId)
+  if (!mailboxIds?.length) return { error: 'Aucune boîte d\'envoi assignée à cette séquence.' }
+
+  const { data: mailboxes } = await supabase
+    .from('sender_identities')
+    .select('id, email, domains!domain_id(domain)')
+    .in('id', mailboxIds.map(r => r.mailbox_id))
+    .eq('user_id', user.id)
+  if (!mailboxes?.length) return { error: 'Boîtes d\'envoi introuvables.' }
+
+  // Load first step
+  const { data: firstStep } = await supabase
+    .from('seq_step')
+    .select('step_number, delay_days, subject, body_html, body_text')
+    .eq('seq_id', sequenceId)
+    .eq('step_number', 1)
+    .single()
+  if (!firstStep) return { error: 'La séquence ne contient aucune étape.' }
+
+  // Load contacts
   let contacts: { id: string }[] | null = null
   if (listIds.length > 0) {
     const { data: members } = await supabase
@@ -216,50 +243,62 @@ export async function enrollContacts(
       if (!seen.has(m.contact_id)) { seen.add(m.contact_id); contacts.push({ id: m.contact_id }) }
     }
   } else {
-    const { data } = await supabase
-      .from('contacts')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('unsubscribed', false)
+    const { data } = await supabase.from('contacts').select('id').eq('user_id', user.id).eq('unsubscribed', false)
     contacts = data
   }
-
   if (!contacts?.length) return { error: 'Aucun contact actif trouvé' }
 
-  // Get first step delay
-  const { data: firstStep } = await supabase
-    .from('sequence_steps')
-    .select('delay_days')
-    .eq('sequence_id', sequenceId)
-    .eq('step_number', 1)
-    .single()
-
-  const delayDays = firstStep?.delay_days ?? 0
-  const nextSendAt = new Date()
-  if (delayDays > 0) {
-    nextSendAt.setDate(nextSendAt.getDate() + delayDays)
+  const scheduledAt = new Date()
+  if (firstStep.delay_days > 0) {
+    scheduledAt.setDate(scheduledAt.getDate() + firstStep.delay_days)
   } else {
-    nextSendAt.setHours(nextSendAt.getHours() + 1)
+    scheduledAt.setHours(scheduledAt.getHours() + 1)
   }
 
-  const rows = contacts.map(c => ({
-    sequence_id: sequenceId,
-    contact_id: c.id,
-    sender_identity_id: senderIdentityId,
-    current_step: 1,
-    next_send_at: nextSendAt.toISOString(),
-  }))
-
-  // Upsert in batches of 500 to avoid request size limits
+  const serviceClient = createServiceClient()
   let enrolled = 0
-  for (let i = 0; i < rows.length; i += 500) {
-    const batch = rows.slice(i, i + 500)
-    const { data, error } = await supabase
-      .from('sequence_enrollments')
-      .upsert(batch, { onConflict: 'sequence_id,contact_id', ignoreDuplicates: true })
-      .select('id')
-    if (error) return { error: error.message }
-    enrolled += data?.length ?? 0
+
+  for (let i = 0; i < contacts.length; i += 200) {
+    const batch = contacts.slice(i, i + 200)
+
+    const enrollmentInserts = batch.map((c, j) => ({
+      seq_id:       sequenceId,
+      contact_id:   c.id,
+      mailbox_id:   mailboxes[(i + j) % mailboxes.length].id,
+      current_step: 1,
+      status:       'active' as const,
+    }))
+
+    const { data: inserted } = await serviceClient
+      .from('seq_enrollment')
+      .upsert(enrollmentInserts, { onConflict: 'seq_id,contact_id', ignoreDuplicates: true })
+      .select('id, contact_id, mailbox_id')
+
+    if (!inserted?.length) continue
+    enrolled += inserted.length
+
+    const sendInserts = inserted.map(enrollment => {
+      const mbox    = mailboxes.find(m => m.id === enrollment.mailbox_id) ?? mailboxes[0]
+      const domainRow = Array.isArray(mbox.domains) ? mbox.domains[0] : mbox.domains
+      const domain  = (domainRow as { domain?: string } | null)?.domain ?? 'mail.invalid'
+      return {
+        user_id:           user.id,
+        mailbox_id:        enrollment.mailbox_id,
+        contact_id:        enrollment.contact_id,
+        source_type:       'sequence' as const,
+        source_id:         sequenceId,
+        step_number:       1,
+        seq_enrollment_id: enrollment.id,
+        subject:           firstStep.subject,
+        body_html:         firstStep.body_html,
+        body_text:         firstStep.body_text ?? null,
+        reply_to:          `r+${enrollment.id}@reply.${domain}`,
+        scheduled_at:      scheduledAt.toISOString(),
+        status:            'pending' as const,
+      }
+    })
+
+    await serviceClient.from('sends').insert(sendInserts)
   }
 
   revalidatePath(`/dashboard/sequences/${sequenceId}`)

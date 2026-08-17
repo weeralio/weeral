@@ -17,7 +17,7 @@ export default async function CheckoutPage({
   const billing = (sp.billing ?? 'monthly') as Billing
 
   const validPlan    = plan    in PLAN_META ? plan    : 'growth'
-  const validBilling = billing === 'annual' ? 'annual' : 'monthly'
+  const validBilling: Billing = billing === 'annual' ? 'annual' : billing === 'quarterly' ? 'quarterly' : 'monthly'
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

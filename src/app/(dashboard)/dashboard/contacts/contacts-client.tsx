@@ -1,12 +1,21 @@
 'use client'
 
-import { useState, useTransition, useRef, useActionState } from 'react'
+import { useState, useTransition, useRef, useActionState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import {
   deleteContacts, addContactsToList, removeContactsFromList,
   createContactList, deleteContactList, importContacts, addContact,
-  exportContactsCSV,
+  exportContactsCSV, bulkSetProspectStatus, bulkCancelContactSequences,
+  getFilteredContactIds,
 } from './actions'
+
+const PROSPECT_STATUSES = [
+  { value: 'new',       label: 'Nouveau',    color: 'text-[#94a3b8]' },
+  { value: 'contacted', label: 'Contacté',   color: 'text-blue-400'  },
+  { value: 'qualified', label: 'Qualifié',   color: 'text-violet-400'},
+  { value: 'refused',   label: 'Refusé',     color: 'text-red-400'   },
+  { value: 'converted', label: 'Converti',   color: 'text-emerald-400'},
+]
 
 interface Contact {
   id: string
@@ -14,6 +23,7 @@ interface Contact {
   first_name: string | null
   last_name: string | null
   company: string | null
+  prospect_status: string | null
   unsubscribed: boolean
   created_at: string
 }
@@ -58,28 +68,44 @@ export default function ContactsClient({
   const router = useRouter()
   const pathname = usePathname()
 
-  // Selection
+  // ── Selection ──────────────────────────────────────────────────────────────
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const allSelected = contacts.length > 0 && selected.size === contacts.length
-  const someSelected = selected.size > 0
+  const [selectingAll, setSelectingAll] = useState(false)
 
-  // UI state
-  const [searchVal, setSearchVal] = useState(initSearch)
+  // Clear stale selections when the page changes (contacts prop changes)
+  useEffect(() => {
+    const pageIds = new Set(contacts.map(c => c.id))
+    setSelected(prev => {
+      const cleaned = new Set([...prev].filter(id => pageIds.has(id)))
+      return cleaned.size === prev.size ? prev : cleaned
+    })
+  }, [contacts])
+
+  const allPageSelected = contacts.length > 0 && contacts.every(c => selected.has(c.id))
+  const someSelected    = selected.size > 0
+
+  // ── UI state ───────────────────────────────────────────────────────────────
+  const [searchVal, setSearchVal]           = useState(initSearch)
   const [showAddContact, setShowAddContact] = useState(false)
-  const [showNewList, setShowNewList] = useState(false)
-  const [newListName, setNewListName] = useState('')
-  const [newListColor, setNewListColor] = useState('#8b5cf6')
-  const [bulkListId, setBulkListId] = useState('')
-  const [showBulkListMenu, setShowBulkListMenu] = useState(false)
-  const [isPending, start] = useTransition()
+  const [showImport, setShowImport]         = useState(false)
+  const [importListMode, setImportListMode] = useState<'none' | 'existing' | 'new'>('none')
+  const [importListId, setImportListId]     = useState('')
+  const [importNewListName, setImportNewListName] = useState('')
+  const [importNewListColor, setImportNewListColor] = useState('#8b5cf6')
+  const [importFile, setImportFile]         = useState<File | null>(null)
+  const [showNewList, setShowNewList]       = useState(false)
+  const [newListName, setNewListName]       = useState('')
+  const [newListColor, setNewListColor]     = useState('#8b5cf6')
+  const [showBulkListMenu, setShowBulkListMenu]     = useState(false)
+  const [showBulkStatusMenu, setShowBulkStatusMenu] = useState(false)
+  const [isPending, start]   = useTransition()
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const csvRef = useRef<HTMLInputElement>(null)
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  // Add contact form state
   const [addState, addAction, addPending] = useActionState(addContact, null)
-  const [importState, importAction, importPending] = useActionState(importContacts, null)
 
+  // ── Routing helpers ────────────────────────────────────────────────────────
   function push(params: Record<string, string | undefined>) {
     const sp = new URLSearchParams(window.location.search)
     Object.entries(params).forEach(([k, v]) => {
@@ -100,8 +126,9 @@ export default function ContactsClient({
     else push({ sort: col, dir: 'desc', page: '1' })
   }
 
+  // ── Selection helpers ──────────────────────────────────────────────────────
   function toggleAll() {
-    if (allSelected) setSelected(new Set())
+    if (allPageSelected) setSelected(new Set())
     else setSelected(new Set(contacts.map(c => c.id)))
   }
 
@@ -114,11 +141,51 @@ export default function ContactsClient({
     })
   }
 
+  async function selectAllMatching() {
+    setSelectingAll(true)
+    start(async () => {
+      const res = await getFilteredContactIds({
+        search: initSearch,
+        status,
+        listId: listId || undefined,
+      })
+      if (res.ids) setSelected(new Set(res.ids))
+      setSelectingAll(false)
+    })
+  }
+
+  // ── Flash ──────────────────────────────────────────────────────────────────
   function flash(type: 'success' | 'error', text: string) {
     setMessage({ type, text })
     setTimeout(() => setMessage(null), 3000)
   }
 
+  // ── Import ─────────────────────────────────────────────────────────────────
+  async function doImport() {
+    if (!importFile) return
+    const fd = new FormData()
+    fd.append('csv', importFile)
+    if (importListMode === 'existing' && importListId) {
+      fd.append('target_list_id', importListId)
+    }
+    if (importListMode === 'new' && importNewListName.trim()) {
+      fd.append('new_list_name', importNewListName.trim())
+      fd.append('new_list_color', importNewListColor)
+    }
+    start(async () => {
+      const res = await importContacts(null, fd)
+      if (res && 'error' in res) flash('error', res.error)
+      else if (res && 'success' in res) {
+        flash('success', res.success)
+        setShowImport(false)
+        setImportFile(null)
+        setImportListMode('none')
+        setImportNewListName('')
+      }
+    })
+  }
+
+  // ── Bulk ops ───────────────────────────────────────────────────────────────
   function bulkDelete() {
     if (!confirm(`Supprimer ${selected.size} contact(s) ?`)) return
     start(async () => {
@@ -136,6 +203,30 @@ export default function ContactsClient({
     })
   }
 
+  function bulkStatus(newStatus: string) {
+    setShowBulkStatusMenu(false)
+    start(async () => {
+      const res = await bulkSetProspectStatus([...selected], newStatus)
+      if (res.error) flash('error', res.error)
+      else flash('success', `Statut mis à jour (${res.updated ?? selected.size})`)
+    })
+  }
+
+  function bulkCancelSeqs() {
+    if (!confirm(`Retirer ${selected.size} contact(s) de toutes leurs séquences actives ?`)) return
+    start(async () => {
+      const res = await bulkCancelContactSequences([...selected])
+      if (res.error) flash('error', res.error)
+      else {
+        const msg = (res.cancelling ?? 0) > 0
+          ? `${res.stopped ?? 0} séquence(s) arrêtée(s), ${res.cancelling} envoi(s) annulation en cours`
+          : `${res.stopped ?? 0} séquence(s) arrêtée(s)`
+        flash('success', msg)
+      }
+    })
+  }
+
+  // ── Export ─────────────────────────────────────────────────────────────────
   async function doExport() {
     start(async () => {
       const res = await exportContactsCSV(listId || undefined)
@@ -148,6 +239,7 @@ export default function ContactsClient({
     })
   }
 
+  // ── Lists ──────────────────────────────────────────────────────────────────
   function createList() {
     if (!newListName.trim()) return
     start(async () => {
@@ -179,15 +271,15 @@ export default function ContactsClient({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Import */}
-          <form action={importAction} className="inline-flex">
-            <input ref={csvRef} name="csv" type="file" accept=".csv" className="hidden"
-              onChange={e => e.target.form?.requestSubmit()} />
-            <button type="button" onClick={() => csvRef.current?.click()} disabled={importPending}
-              className="px-3 py-2 rounded-xl border border-[#1e1e3f] text-sm text-[#94a3b8] hover:border-[#3b3b6f] hover:text-white transition-all disabled:opacity-50">
-              {importPending ? 'Import...' : '↑ Importer CSV'}
-            </button>
-          </form>
+          {/* Import toggle */}
+          <button type="button" onClick={() => setShowImport(v => !v)} disabled={isPending}
+            className={`px-3 py-2 rounded-xl border text-sm transition-all disabled:opacity-50 ${
+              showImport
+                ? 'border-violet-500/50 text-violet-300 bg-violet-950/20'
+                : 'border-[#1e1e3f] text-[#94a3b8] hover:border-[#3b3b6f] hover:text-white'
+            }`}>
+            ↑ Importer CSV
+          </button>
           {/* Export */}
           <button onClick={doExport} disabled={isPending}
             className="px-3 py-2 rounded-xl border border-[#1e1e3f] text-sm text-[#94a3b8] hover:border-[#3b3b6f] hover:text-white transition-all disabled:opacity-50">
@@ -201,16 +293,90 @@ export default function ContactsClient({
         </div>
       </div>
 
+      {/* ── Import panel ───────────────────────────────────────────────────── */}
+      {showImport && (
+        <div className="px-5 py-4 rounded-2xl border border-[#1e1e3f] bg-[#07070f] space-y-4">
+          <p className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">Importer des contacts CSV</p>
+
+          {/* File picker */}
+          <div>
+            <input ref={csvRef} type="file" accept=".csv" className="hidden"
+              onChange={e => setImportFile(e.target.files?.[0] ?? null)} />
+            <button type="button" onClick={() => csvRef.current?.click()}
+              className="w-full px-3 py-2.5 rounded-xl border border-dashed border-[#3b3b6f] text-sm text-left transition-all hover:border-violet-500/50 hover:text-white text-[#94a3b8]">
+              {importFile ? (
+                <span className="text-white">{importFile.name}</span>
+              ) : (
+                <span>Cliquer pour choisir un fichier CSV…</span>
+              )}
+            </button>
+          </div>
+
+          {/* List assignment */}
+          <div className="space-y-3">
+            <p className="text-xs text-[#475569]">Ajouter les contacts importés à une liste</p>
+            <div className="flex items-center gap-2">
+              {(['none', 'existing', 'new'] as const).map(m => (
+                <button key={m} type="button" onClick={() => setImportListMode(m)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                    importListMode === m
+                      ? 'border-violet-500/60 bg-violet-950/30 text-violet-300'
+                      : 'border-[#1e1e3f] text-[#475569] hover:border-[#3b3b6f] hover:text-[#94a3b8]'
+                  }`}>
+                  {m === 'none' ? 'Aucune liste' : m === 'existing' ? 'Liste existante' : 'Créer une liste'}
+                </button>
+              ))}
+            </div>
+
+            {importListMode === 'existing' && (
+              <select value={importListId} onChange={e => setImportListId(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl bg-[#0a0a18] border border-[#1e1e3f] text-sm text-[#94a3b8] focus:outline-none focus:border-violet-500/50">
+                <option value="">— Choisir une liste —</option>
+                {lists.map(l => (
+                  <option key={l.id} value={l.id}>{l.name} ({l.count})</option>
+                ))}
+              </select>
+            )}
+
+            {importListMode === 'new' && (
+              <div className="space-y-2">
+                <input value={importNewListName} onChange={e => setImportNewListName(e.target.value)}
+                  placeholder="Nom de la nouvelle liste"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#0a0a18] border border-[#1e1e3f] text-white text-sm placeholder-[#3b3b6f] focus:outline-none focus:border-violet-500/50" />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[#475569]">Couleur :</span>
+                  {LIST_COLORS.map(c => (
+                    <button key={c} type="button" onClick={() => setImportNewListColor(c)}
+                      className={`w-5 h-5 rounded-full transition-all ${importNewListColor === c ? 'ring-2 ring-white ring-offset-1 ring-offset-[#07070f]' : ''}`}
+                      style={{ backgroundColor: c }} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <button type="button" onClick={doImport}
+              disabled={!importFile || isPending || (importListMode === 'existing' && !importListId) || (importListMode === 'new' && !importNewListName.trim())}
+              className="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium transition-all">
+              {isPending ? 'Import en cours…' : 'Importer'}
+            </button>
+            <button type="button" onClick={() => { setShowImport(false); setImportFile(null); setImportListMode('none') }}
+              className="px-4 py-2.5 rounded-xl border border-[#1e1e3f] text-sm text-[#475569] hover:text-[#94a3b8] transition-all">
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Flash message */}
-      {(message || importState || addState) && (
+      {(message || addState) && (
         <div className={`px-4 py-2.5 rounded-xl text-sm ${
-          message?.type === 'error' || (importState && 'error' in importState) || (addState && 'error' in addState)
+          message?.type === 'error' || (addState && 'error' in addState)
             ? 'bg-red-950/30 border border-red-700/40 text-red-300'
             : 'bg-emerald-950/30 border border-emerald-700/40 text-emerald-300'
         }`}>
-          {message?.text
-            ?? (importState && 'error' in importState ? importState.error : importState && 'success' in importState ? importState.success : '')
-            ?? (addState && 'error' in addState ? addState.error : addState && 'success' in addState ? addState.success : '')}
+          {message?.text ?? (addState && 'error' in addState ? addState.error : addState && 'success' in addState ? addState.success : '')}
         </div>
       )}
 
@@ -373,6 +539,33 @@ export default function ContactsClient({
                   )}
                 </div>
 
+                {/* Statut prospect */}
+                <div className="relative">
+                  <button onClick={() => setShowBulkStatusMenu(v => !v)}
+                    className="px-3 py-2 rounded-xl border border-[#1e1e3f] text-xs text-[#94a3b8] hover:border-[#3b3b6f] transition-all">
+                    Statut
+                  </button>
+                  {showBulkStatusMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowBulkStatusMenu(false)} />
+                      <div className="absolute right-0 top-full mt-1 z-20 w-40 py-1 rounded-xl border border-[#1e1e3f] bg-[#0a0a18] shadow-xl">
+                        {PROSPECT_STATUSES.map(s => (
+                          <button key={s.value} onClick={() => bulkStatus(s.value)}
+                            className={`w-full px-3 py-2 text-xs text-left hover:bg-[#1e1e3f] transition-all ${s.color}`}>
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Retirer des séquences */}
+                <button onClick={bulkCancelSeqs} disabled={isPending}
+                  className="px-3 py-2 rounded-xl border border-[#1e1e3f] text-xs text-[#94a3b8] hover:border-amber-500/40 hover:text-amber-300 disabled:opacity-50 transition-all">
+                  ✕ Séquences
+                </button>
+
                 <button onClick={bulkDelete} disabled={isPending}
                   className="px-3 py-2 rounded-xl border border-red-700/40 text-red-400 text-xs hover:bg-red-950/20 disabled:opacity-50 transition-all">
                   Supprimer
@@ -381,6 +574,19 @@ export default function ContactsClient({
             )}
           </div>
 
+          {/* Select-all-matching banner */}
+          {allPageSelected && totalCount > contacts.length && (
+            <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-violet-950/20 border border-violet-500/30 text-sm">
+              <span className="text-violet-300 text-xs">
+                Les {contacts.length} contacts de cette page sont sélectionnés.
+              </span>
+              <button onClick={selectAllMatching} disabled={selectingAll || isPending}
+                className="text-xs text-violet-300 font-medium underline underline-offset-2 hover:text-white disabled:opacity-50 transition-colors">
+                {selectingAll ? 'Chargement…' : `Sélectionner les ${totalCount.toLocaleString()} contacts correspondants`}
+              </button>
+            </div>
+          )}
+
           {/* Table */}
           <div className="rounded-2xl border border-[#1e1e3f] overflow-hidden">
             <div className="overflow-x-auto">
@@ -388,7 +594,7 @@ export default function ContactsClient({
                 <thead>
                   <tr className="border-b border-[#1e1e3f] bg-[#07070f]">
                     <th className="px-4 py-3 w-10">
-                      <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                      <input type="checkbox" checked={allPageSelected} onChange={toggleAll}
                         className="rounded border-[#3b3b6f] bg-[#0a0a18] accent-violet-600" />
                     </th>
                     {SORT_COLS.map(col => (
@@ -403,6 +609,9 @@ export default function ContactsClient({
                       </th>
                     ))}
                     <th className="px-4 py-3 text-left">
+                      <span className="text-xs font-medium text-[#475569] uppercase tracking-wider">Prospect</span>
+                    </th>
+                    <th className="px-4 py-3 text-left">
                       <span className="text-xs font-medium text-[#475569] uppercase tracking-wider">Statut</span>
                     </th>
                     <th className="px-4 py-3 text-left">
@@ -413,7 +622,7 @@ export default function ContactsClient({
                 <tbody className="divide-y divide-[#0e0e25]">
                   {contacts.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-16 text-center text-sm text-[#475569]">
+                      <td colSpan={8} className="px-4 py-16 text-center text-sm text-[#475569]">
                         {initSearch ? 'Aucun résultat pour cette recherche.' : 'Aucun contact.'}
                       </td>
                     </tr>
@@ -435,6 +644,12 @@ export default function ContactsClient({
                         <td className="px-4 py-3 text-[#94a3b8]">{c.company || '—'}</td>
                         <td className="px-4 py-3 text-[#475569] text-xs">
                           {new Date(c.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
+                        </td>
+                        <td className="px-4 py-3">
+                          {(() => {
+                            const ps = PROSPECT_STATUSES.find(s => s.value === (c.prospect_status ?? 'new'))
+                            return <span className={`text-xs ${ps?.color ?? 'text-[#94a3b8]'}`}>{ps?.label ?? '—'}</span>
+                          })()}
                         </td>
                         <td className="px-4 py-3">
                           {c.unsubscribed

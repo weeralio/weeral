@@ -1,7 +1,7 @@
 export const PLAN_META = {
-  starter: { name: 'Starter', monthlyPrice: 147, annualPrice: 88,  annualTotal: 1056 },
-  growth:  { name: 'Growth',  monthlyPrice: 197, annualPrice: 118, annualTotal: 1416 },
-  agency:  { name: 'Agency',  monthlyPrice: 347, annualPrice: 208, annualTotal: 2496 },
+  starter: { name: 'Starter', monthlyPrice: 147, quarterlyPrice: 110, quarterlyTotal: 330, annualPrice: 88,  annualTotal: 1056 },
+  growth:  { name: 'Growth',  monthlyPrice: 197, quarterlyPrice: 148, quarterlyTotal: 444, annualPrice: 118, annualTotal: 1416 },
+  agency:  { name: 'Agency',  monthlyPrice: 347, quarterlyPrice: 260, quarterlyTotal: 780, annualPrice: 208, annualTotal: 2496 },
 } as const
 
 export const FREE_CONTACTS_LIMIT = 100
@@ -14,7 +14,7 @@ export const PLAN_LIMITS = {
 } as const
 
 export type PlanId = keyof typeof PLAN_META
-export type Billing = 'monthly' | 'annual'
+export type Billing = 'monthly' | 'quarterly' | 'annual'
 
 export function getStripe() {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -28,16 +28,19 @@ export function getStripe() {
 export function getPriceId(plan: PlanId, billing: Billing): string {
   const map: Record<PlanId, Record<Billing, string>> = {
     starter: {
-      monthly: process.env.STRIPE_PRICE_STARTER_MONTHLY!,
-      annual:  process.env.STRIPE_PRICE_STARTER_ANNUAL!,
+      monthly:   process.env.STRIPE_PRICE_STARTER_MONTHLY!,
+      quarterly: process.env.STRIPE_PRICE_STARTER_QUARTERLY!,
+      annual:    process.env.STRIPE_PRICE_STARTER_ANNUAL!,
     },
     growth: {
-      monthly: process.env.STRIPE_PRICE_GROWTH_MONTHLY!,
-      annual:  process.env.STRIPE_PRICE_GROWTH_ANNUAL!,
+      monthly:   process.env.STRIPE_PRICE_GROWTH_MONTHLY!,
+      quarterly: process.env.STRIPE_PRICE_GROWTH_QUARTERLY!,
+      annual:    process.env.STRIPE_PRICE_GROWTH_ANNUAL!,
     },
     agency: {
-      monthly: process.env.STRIPE_PRICE_AGENCY_MONTHLY!,
-      annual:  process.env.STRIPE_PRICE_AGENCY_ANNUAL!,
+      monthly:   process.env.STRIPE_PRICE_AGENCY_MONTHLY!,
+      quarterly: process.env.STRIPE_PRICE_AGENCY_QUARTERLY!,
+      annual:    process.env.STRIPE_PRICE_AGENCY_ANNUAL!,
     },
   }
   return map[plan][billing]

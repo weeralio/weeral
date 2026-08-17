@@ -10,6 +10,8 @@ const PLANS = [
     name: 'Starter',
     tagline: 'Pour lancer votre prospection',
     monthly: 147,
+    quarterly: 110,
+    quarterlyTotal: 330,
     annual: 88,
     annualTotal: 1056,
     popular: false,
@@ -35,6 +37,8 @@ const PLANS = [
     name: 'Growth',
     tagline: 'Pour les équipes sales qui scalent',
     monthly: 197,
+    quarterly: 148,
+    quarterlyTotal: 444,
     annual: 118,
     annualTotal: 1416,
     popular: true,
@@ -63,6 +67,8 @@ const PLANS = [
     name: 'Agency',
     tagline: 'Pour les agences et revendeurs',
     monthly: 347,
+    quarterly: 260,
+    quarterlyTotal: 780,
     annual: 208,
     annualTotal: 2496,
     popular: false,
@@ -120,60 +126,63 @@ function XIcon() {
   )
 }
 
+type BillingMode = 'monthly' | 'quarterly' | 'annual'
+
 export default function PricingClient() {
-  const [annual, setAnnual] = useState(false)
+  const [billing, setBilling] = useState<BillingMode>('monthly')
+
+  const price = (plan: typeof PLANS[number]) => {
+    if (billing === 'annual') return plan.annual
+    if (billing === 'quarterly') return plan.quarterly
+    return plan.monthly
+  }
 
   return (
     <div className="bg-[#07070f] min-h-screen pb-28">
 
       {/* ─── Hero ─── */}
-      <section className="relative py-24 text-center px-6 overflow-hidden">
-        <div className="orb orb-purple w-[600px] h-[600px] -top-32 left-1/2 -translate-x-1/2 opacity-20" />
-        <div className="relative z-10 max-w-3xl mx-auto">
-          <p className="text-xs font-semibold text-[#8b5cf6] uppercase tracking-widest mb-4">Tarification</p>
-          <h1 className="text-5xl md:text-6xl font-bold text-white mb-5 leading-tight">
-            Simple.<br />
-            <span className="gradient-text">Transparent.</span>
+      <section className="py-28 text-center px-6">
+        <div className="max-w-3xl mx-auto">
+          <p className="text-xs font-mono text-[#8b5cf6] uppercase tracking-[0.2em] mb-6">Tarification</p>
+          <h1 className="text-5xl md:text-6xl font-black tracking-[-0.04em] text-white mb-5 leading-[1.05]">
+            Simple.<br />Transparent.
           </h1>
-          <p className="text-lg text-[#94a3b8] max-w-xl mx-auto mb-10">
+          <p className="text-base text-[#64748b] max-w-xl mx-auto mb-10">
             Abonnement Weeral + frais AWS SES directs. Zéro frais caché, zéro frais par email côté nous.
           </p>
 
           {/* Toggle */}
-          <div className="inline-flex items-center gap-4 bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-1.5">
-            <button
-              onClick={() => setAnnual(false)}
-              className={`relative px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                !annual ? 'text-white' : 'text-[#475569] hover:text-[#94a3b8]'
-              }`}
-            >
-              {!annual && (
-                <motion.div
-                  layoutId="billing-toggle"
-                  className="absolute inset-0 bg-[#1e1e3f] rounded-xl"
-                  transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
-                />
-              )}
-              <span className="relative z-10">Mensuel</span>
-            </button>
-            <button
-              onClick={() => setAnnual(true)}
-              className={`relative px-5 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
-                annual ? 'text-white' : 'text-[#475569] hover:text-[#94a3b8]'
-              }`}
-            >
-              {annual && (
-                <motion.div
-                  layoutId="billing-toggle"
-                  className="absolute inset-0 bg-[#1e1e3f] rounded-xl"
-                  transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
-                />
-              )}
-              <span className="relative z-10">Annuel</span>
-              <span className="relative z-10 text-xs font-semibold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-2 py-0.5 rounded-full">
-                −40%
-              </span>
-            </button>
+          <div className="inline-flex items-center gap-1 bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-1.5">
+            {(['monthly', 'quarterly', 'annual'] as BillingMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setBilling(mode)}
+                className={`relative px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
+                  billing === mode ? 'text-white' : 'text-[#475569] hover:text-[#94a3b8]'
+                }`}
+              >
+                {billing === mode && (
+                  <motion.div
+                    layoutId="billing-toggle"
+                    className="absolute inset-0 bg-[#1e1e3f] rounded-xl"
+                    transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
+                  />
+                )}
+                <span className="relative z-10">
+                  {mode === 'monthly' ? 'Mensuel' : mode === 'quarterly' ? 'Trimestriel' : 'Annuel'}
+                </span>
+                {mode === 'quarterly' && (
+                  <span className="relative z-10 text-xs font-semibold text-sky-400 bg-sky-400/10 border border-sky-400/20 px-2 py-0.5 rounded-full">
+                    −25%
+                  </span>
+                )}
+                {mode === 'annual' && (
+                  <span className="relative z-10 text-xs font-semibold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-2 py-0.5 rounded-full">
+                    −40%
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
         </div>
       </section>
@@ -194,38 +203,41 @@ export default function PricingClient() {
               }`}
             >
               {plan.popular && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[#7c3aed] to-[#a855f7] text-white text-xs font-bold px-5 py-2 rounded-full shadow-[0_0_20px_rgba(139,92,246,0.5)] whitespace-nowrap">
-                  ✦ Most Popular
-                </div>
+                <div className="absolute -top-px left-0 right-0 h-0.5 bg-[#7c3aed] rounded-t-2xl" />
               )}
 
               {/* Header */}
               <div className="mb-6">
-                <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${plan.accentLabel}`}>
+                <p className={`text-xs font-mono uppercase tracking-[0.2em] mb-2 ${plan.accentLabel}`}>
                   {plan.name}
                 </p>
                 <p className="text-xs text-[#475569] mb-5">{plan.tagline}</p>
 
                 <AnimatePresence mode="wait">
                   <motion.div
-                    key={annual ? 'annual' : 'monthly'}
+                    key={billing}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.2 }}
                   >
                     <div className="flex items-end gap-1 mb-1">
-                      <span className="text-5xl font-bold text-white tabular-nums">
-                        {annual ? plan.annual : plan.monthly}€
+                      <span className="text-5xl font-black tracking-[-0.03em] text-white tabular-nums">
+                        {price(plan)}€
                       </span>
                       <span className="text-base text-[#475569] pb-1.5">/mois</span>
                     </div>
-                    {annual && (
+                    {billing === 'annual' && (
                       <p className="text-xs text-[#475569]">
                         Facturé <span className="text-[#94a3b8] font-medium">{plan.annualTotal.toLocaleString()}€/an</span>
                       </p>
                     )}
-                    {!annual && (
+                    {billing === 'quarterly' && (
+                      <p className="text-xs text-[#475569]">
+                        Facturé <span className="text-[#94a3b8] font-medium">{plan.quarterlyTotal}€ tous les 3 mois</span>
+                      </p>
+                    )}
+                    {billing === 'monthly' && (
                       <p className="text-xs text-[#475569]">Facturé mensuellement</p>
                     )}
                   </motion.div>
@@ -234,10 +246,10 @@ export default function PricingClient() {
 
               {/* CTA */}
               <Link
-                href={`${plan.ctaHref}&billing=${annual ? 'annual' : 'monthly'}`}
-                className={`block text-center text-sm font-medium py-3 px-4 rounded-xl mb-8 transition-all ${
+                href={`${plan.ctaHref}&billing=${billing}`}
+                className={`block text-center text-sm font-semibold py-3 px-4 rounded-lg mb-8 transition-colors ${
                   plan.popular
-                    ? 'bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] hover:from-[#6d28d9] hover:to-[#7c3aed] text-white shadow-[0_0_24px_rgba(139,92,246,0.35)] hover:shadow-[0_0_32px_rgba(139,92,246,0.5)]'
+                    ? 'bg-[#7c3aed] hover:bg-[#6d28d9] text-white'
                     : plan.id === 'agency'
                     ? 'border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-400/50'
                     : 'border border-[#1e1e3f] text-[#94a3b8] hover:border-[#3b3b6f] hover:text-white'
@@ -273,26 +285,19 @@ export default function PricingClient() {
         </div>
 
         {/* ─── AWS note ─── */}
-        <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-6 mb-16 flex items-start gap-4">
-          <div className="w-10 h-10 rounded-xl bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 flex items-center justify-center shrink-0 text-[#8b5cf6]">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div>
-            <h3 className="font-semibold text-white mb-1.5">Et les frais AWS SES ?</h3>
-            <p className="text-sm text-[#94a3b8] leading-relaxed">
-              AWS SES facture <span className="text-white font-medium">$0.10 pour 1&nbsp;000 emails</span>.
-              Pour 10&nbsp;000 emails/mois, c&apos;est $1. Pour 100&nbsp;000, c&apos;est $10.
-              Ces frais sont facturés directement par AWS sur <em>ton</em> compte — pas par nous.
-            </p>
-            <p className="text-xs text-[#475569] mt-1.5">Free tier AWS : 62&nbsp;000 emails/mois depuis une instance EC2.</p>
-          </div>
+        <div className="border-l-2 border-[#7c3aed]/40 pl-6 mb-16">
+          <p className="text-xs font-mono text-[#475569] uppercase tracking-[0.2em] mb-3">Et les frais AWS SES ?</p>
+          <p className="text-sm text-[#64748b] leading-relaxed mb-1.5">
+            AWS SES facture <span className="text-white font-medium">$0.10 pour 1&nbsp;000 emails</span>.
+            Pour 10&nbsp;000 emails/mois, c&apos;est $1. Pour 100&nbsp;000, c&apos;est $10.
+            Ces frais sont facturés directement par AWS sur <em>ton</em> compte — pas par nous.
+          </p>
+          <p className="text-xs text-[#334155] font-mono">Free tier AWS : 62&nbsp;000 emails/mois depuis une instance EC2.</p>
         </div>
 
         {/* ─── Comparison table ─── */}
         <div className="mb-16">
-          <h2 className="text-2xl font-bold text-white mb-8 text-center">Comparaison complète</h2>
+          <h2 className="text-2xl font-black tracking-[-0.03em] text-white mb-8 text-center">Comparaison complète</h2>
           <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -334,8 +339,8 @@ export default function PricingClient() {
 
         {/* ─── FAQ ─── */}
         <div>
-          <h2 className="text-2xl font-bold text-white mb-8 text-center">Questions fréquentes</h2>
-          <div className="grid md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+          <h2 className="text-2xl font-black tracking-[-0.03em] text-white mb-8 text-center">Questions fréquentes</h2>
+          <div className="max-w-2xl mx-auto divide-y divide-[#1e1e3f]">
             {[
               { q: 'Y a-t-il un essai gratuit ?', a: 'Tu peux créer un compte et configurer ton infrastructure. L\'abonnement est requis pour lancer des campagnes réelles.' },
               { q: 'Puis-je changer de plan ?', a: 'Oui, upgrade ou downgrade à tout moment. Le changement prend effet immédiatement, au prorata.' },
@@ -344,9 +349,9 @@ export default function PricingClient() {
               { q: 'Qu\'est-ce que le White label ?', a: 'Le plan Agency te permet de déployer Weeral sous ta propre marque pour tes clients — logo, couleurs, domaine personnalisé.' },
               { q: 'Qu\'est-ce que l\'IA complète ?', a: 'Génération de séquences complètes (Opus), analyse et scoring du contenu (Sonnet), campagnes IA guidées avec brief par phase.' },
             ].map(({ q, a }) => (
-              <div key={q} className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-xl p-5">
-                <p className="font-medium text-white mb-2">{q}</p>
-                <p className="text-sm text-[#94a3b8] leading-relaxed">{a}</p>
+              <div key={q} className="py-6 grid md:grid-cols-[1fr_1.4fr] gap-4">
+                <p className="text-sm font-semibold text-white">{q}</p>
+                <p className="text-sm text-[#64748b] leading-relaxed">{a}</p>
               </div>
             ))}
           </div>

@@ -1,19 +1,4 @@
-import { schedules } from '@trigger.dev/sdk/v3'
-
-// Tourne toutes les heures pour envoyer les emails des campagnes en cours
-export const sendTask = schedules.task({
-  id: 'hourly-send',
-  cron: '0 * * * *',
-  run: async () => {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.weeral.io'
-    const secret = process.env.CRON_SECRET
-
-    const response = await fetch(`${baseUrl}/api/cron/send`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${secret}` },
-    })
-
-    const result = await response.json()
-    return result
-  },
-})
+// Remplacé par outbox-tick.ts (Prompt 1).
+// Ce fichier est conservé pour ne pas laisser l'ancien task ID 'hourly-send'
+// sans définition dans Trigger.dev — supprimer ce schedule dans le dashboard Trigger.dev.
+export {}

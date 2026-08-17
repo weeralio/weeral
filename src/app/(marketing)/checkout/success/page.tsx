@@ -26,7 +26,6 @@ async function syncSubscription(subscriptionId: string, sessionUserId: string | 
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
-    // Priority: 1) logged-in session user, 2) subscription/customer metadata
     let userId: string | null = sessionUserId
     if (!userId) userId = subMeta.user_id || custMeta.user_id || null
 
@@ -43,7 +42,6 @@ async function syncSubscription(subscriptionId: string, sessionUserId: string | 
       updated_at:             new Date().toISOString(),
     }
 
-    // Check if a row already exists for this subscription ID
     const { data: existing } = await admin
       .from('subscriptions')
       .select('id')
@@ -52,14 +50,8 @@ async function syncSubscription(subscriptionId: string, sessionUserId: string | 
 
     let error
     if (existing) {
-      // Update in place — avoids any unique constraint conflict
-      ;({ error } = await admin
-        .from('subscriptions')
-        .update(row)
-        .eq('stripe_subscription_id', sub.id))
+      ;({ error } = await admin.from('subscriptions').update(row).eq('stripe_subscription_id', sub.id))
     } else {
-      // Check if there's already a row for this customer (prior subscription)
-      // and update it rather than inserting a duplicate stripe_customer_id
       const { data: customerRow } = await admin
         .from('subscriptions')
         .select('id')
@@ -67,17 +59,13 @@ async function syncSubscription(subscriptionId: string, sessionUserId: string | 
         .maybeSingle()
 
       if (customerRow) {
-        ;({ error } = await admin
-          .from('subscriptions')
-          .update(row)
-          .eq('stripe_customer_id', customerId))
+        ;({ error } = await admin.from('subscriptions').update(row).eq('stripe_customer_id', customerId))
       } else {
         ;({ error } = await admin.from('subscriptions').insert(row))
       }
     }
 
     if (error) console.error('[checkout/success] DB error', error)
-    else console.log('[checkout/success] synced', { subId: sub.id, userId, status: sub.status })
   } catch (err) {
     console.error('[checkout/success] syncSubscription failed', err)
   }
@@ -94,43 +82,58 @@ export default async function CheckoutSuccessPage({
   const subscriptionId = sp.sub ?? null
   const meta           = PLAN_META[plan] ?? PLAN_META.growth
 
-  // Get logged-in user (works on marketing pages via middleware session)
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Sync subscription to DB immediately on page load
   if (subscriptionId) {
     await syncSubscription(subscriptionId, user?.id ?? null)
   }
 
+  const billingLabel =
+    billing === 'annual' ? 'Abonnement valide 12 mois.' :
+    billing === 'quarterly' ? 'Abonnement valide 3 mois.' :
+    'Renouvellement mensuel automatique.'
+
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-6">
-      <div className="text-center max-w-lg">
-        <div className="w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-8 shadow-[0_0_40px_rgba(16,185,129,0.15)]">
-          <svg className="w-10 h-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
+    <div className="min-h-screen bg-[#07070f] flex items-center justify-center px-6">
+      <div className="max-w-md w-full">
+        <div className="border-t-2 border-emerald-400 pt-8 mb-8">
+          <p className="text-xs font-mono text-emerald-400 uppercase tracking-[0.2em] mb-4">Paiement confirmé</p>
+          <h1 className="text-4xl font-black tracking-[-0.03em] text-white mb-3">
+            Bienvenue sur<br />Weeral {meta.name}.
+          </h1>
+          <p className="text-sm text-[#64748b] leading-relaxed">
+            Un reçu a été envoyé à votre adresse email. {billingLabel}
+          </p>
         </div>
 
-        <h1 className="text-3xl font-bold text-white mb-3">Paiement confirmé !</h1>
-        <p className="text-[#94a3b8] mb-2">
-          Bienvenue sur le plan <span className="text-white font-semibold">{meta.name}</span>.
-        </p>
-        <p className="text-sm text-[#475569] mb-10">
-          Un reçu a été envoyé à votre adresse email.
-          {billing === 'annual' && ' Votre abonnement est valide 12 mois.'}
-        </p>
+        <div className="space-y-0 divide-y divide-[#1e1e3f] mb-10">
+          {[
+            'Connecte ton expéditeur (Brevo, Mailgun, SES…)',
+            'Importe tes premiers contacts CSV',
+            'Lance ton warmup de domaine',
+            'Crée ta première campagne',
+          ].map((step, i) => (
+            <div key={step} className="flex items-center gap-4 py-4">
+              <span className="text-xs font-mono text-[#334155] w-6 shrink-0">0{i + 1}</span>
+              <span className="text-sm text-[#64748b]">{step}</span>
+            </div>
+          ))}
+        </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        <div className="flex flex-col sm:flex-row gap-3">
           <Link
             href="/dashboard"
-            className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] text-white font-semibold hover:from-[#6d28d9] hover:to-[#7c3aed] transition-all shadow-[0_0_20px_rgba(139,92,246,0.3)]"
+            className="flex-1 flex items-center justify-center gap-2 bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-semibold py-3 px-6 rounded-lg text-sm transition-colors"
           >
-            Accéder au dashboard →
+            Accéder au dashboard
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            </svg>
           </Link>
           <Link
             href="/pricing"
-            className="px-6 py-3.5 rounded-xl border border-[#1e1e3f] text-[#94a3b8] hover:border-[#3b3b6f] hover:text-white transition-all"
+            className="flex items-center justify-center px-5 py-3 rounded-lg border border-[#1e1e3f] text-sm text-[#64748b] hover:border-[#3b3b6f] hover:text-white transition-all"
           >
             Voir mon plan
           </Link>
