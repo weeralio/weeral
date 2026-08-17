@@ -361,3 +361,240 @@ export async function deleteAutoResponder(id: string): Promise<{ error?: string 
   revalidatePath('/dashboard/repondeurs')
   return {}
 }
+
+// ─── Enrollment list types ────────────────────────────────────────────────────
+
+export interface EnrollmentContact {
+  id: string
+  email: string
+  first_name: string | null
+  last_name: string | null
+  prospect_status: string | null
+}
+
+export interface LastSendEvent {
+  seq_enrollment_id: string
+  status: string
+  opened_at: string | null
+  clicked_at: string | null
+  step_number: number
+  scheduled_at: string
+  last_error: string | null
+}
+
+export interface EnrollmentRow {
+  id: string
+  contact_id: string
+  mailbox_id: string | null
+  current_step: number
+  status: string
+  stop_reason: string | null
+  stopped_at: string | null
+  enrolled_at: string
+  completed_at: string | null
+  contact: EnrollmentContact | null
+  lastEvent: LastSendEvent | null
+}
+
+// ─── Sequence lifecycle controls ──────────────────────────────────────────────
+
+export async function pauseSequence(seqId: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { data: seq } = await supabase.from('seq').select('id').eq('id', seqId).eq('user_id', user.id).single()
+  if (!seq) return { error: 'Séquence introuvable' }
+
+  const { data: active } = await supabase.from('seq_enrollment').select('id').eq('seq_id', seqId).eq('status', 'active')
+  const ids = active?.map(e => e.id) ?? []
+
+  await supabase.from('seq').update({ status: 'paused' }).eq('id', seqId)
+
+  if (ids.length) {
+    const service = createServiceClient()
+    // Freeze pending sends by pushing scheduled_at into far future — drain ignores them
+    await service.from('sends')
+      .update({ scheduled_at: '2099-01-01T00:00:00.000Z' })
+      .in('seq_enrollment_id', ids)
+      .eq('status', 'pending')
+  }
+
+  revalidatePath(`/dashboard/sequences/${seqId}`)
+  return {}
+}
+
+export async function resumeSequence(seqId: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { data: seq } = await supabase.from('seq').select('id').eq('id', seqId).eq('user_id', user.id).single()
+  if (!seq) return { error: 'Séquence introuvable' }
+
+  const { data: active } = await supabase.from('seq_enrollment').select('id').eq('seq_id', seqId).eq('status', 'active')
+  const ids = active?.map(e => e.id) ?? []
+
+  await supabase.from('seq').update({ status: 'active' }).eq('id', seqId)
+
+  if (ids.length) {
+    const service = createServiceClient()
+    // Restore only sends frozen by pause (scheduled in 2099)
+    await service.from('sends')
+      .update({ scheduled_at: new Date().toISOString() })
+      .in('seq_enrollment_id', ids)
+      .eq('status', 'pending')
+      .gt('scheduled_at', '2098-01-01T00:00:00.000Z')
+  }
+
+  revalidatePath(`/dashboard/sequences/${seqId}`)
+  return {}
+}
+
+export async function stopSequence(seqId: string): Promise<{ error?: string; stopped?: number }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { data: seq } = await supabase.from('seq').select('id').eq('id', seqId).eq('user_id', user.id).single()
+  if (!seq) return { error: 'Séquence introuvable' }
+
+  const { data: active } = await supabase.from('seq_enrollment').select('id').eq('seq_id', seqId).eq('status', 'active')
+  const ids = active?.map(e => e.id) ?? []
+
+  const service = createServiceClient()
+  if (ids.length) {
+    await service.from('seq_enrollment')
+      .update({ status: 'stopped', stop_reason: 'manual', stopped_at: new Date().toISOString() })
+      .in('id', ids)
+    await service.from('sends')
+      .update({ status: 'cancelling' })
+      .in('seq_enrollment_id', ids)
+      .eq('status', 'pending')
+  }
+
+  await supabase.from('seq').update({ status: 'stopped' }).eq('id', seqId)
+
+  revalidatePath(`/dashboard/sequences/${seqId}`)
+  return { stopped: ids.length }
+}
+
+export async function deleteSequence(seqId: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { error } = await supabase.from('seq').delete().eq('id', seqId).eq('user_id', user.id)
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard/sequences')
+  return {}
+}
+
+// ─── Enrollment list (paginated) ──────────────────────────────────────────────
+
+export async function getEnrollmentsPage(
+  seqId: string,
+  page: number,
+  perPage = 20,
+): Promise<{ error?: string; enrollments?: EnrollmentRow[]; total?: number }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { data: seq } = await supabase.from('seq').select('id').eq('id', seqId).eq('user_id', user.id).single()
+  if (!seq) return { error: 'Séquence introuvable' }
+
+  const offset = (page - 1) * perPage
+
+  const { data: rows, count } = await supabase
+    .from('seq_enrollment')
+    .select(
+      'id, contact_id, mailbox_id, current_step, status, stop_reason, stopped_at, enrolled_at, completed_at, contacts!contact_id(id, email, first_name, last_name, prospect_status)',
+      { count: 'exact' },
+    )
+    .eq('seq_id', seqId)
+    .order('enrolled_at', { ascending: false })
+    .range(offset, offset + perPage - 1)
+
+  if (!rows) return { total: 0, enrollments: [] }
+
+  const enrollmentIds = rows.map(r => r.id)
+  const { data: events } = enrollmentIds.length > 0
+    ? await supabase
+        .from('sends')
+        .select('seq_enrollment_id, status, opened_at, clicked_at, step_number, scheduled_at, last_error')
+        .in('seq_enrollment_id', enrollmentIds)
+        .order('created_at', { ascending: false })
+    : { data: [] as LastSendEvent[] }
+
+  const lastEventMap: Record<string, LastSendEvent> = {}
+  for (const s of events ?? []) {
+    const e = s as LastSendEvent
+    if (!lastEventMap[e.seq_enrollment_id]) lastEventMap[e.seq_enrollment_id] = e
+  }
+
+  return {
+    total: count ?? 0,
+    enrollments: rows.map(r => {
+      const contact = (Array.isArray(r.contacts) ? r.contacts[0] : r.contacts) as EnrollmentContact | null
+      return {
+        id:          r.id,
+        contact_id:  r.contact_id,
+        mailbox_id:  r.mailbox_id,
+        current_step: r.current_step,
+        status:      r.status,
+        stop_reason: r.stop_reason,
+        stopped_at:  r.stopped_at,
+        enrolled_at: r.enrolled_at,
+        completed_at: r.completed_at,
+        contact:     contact,
+        lastEvent:   lastEventMap[r.id] ?? null,
+      }
+    }),
+  }
+}
+
+export async function cancelEnrollment(enrollmentId: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { error } = await supabase.rpc('cancel_seq_enrollment', {
+    p_enrollment_id: enrollmentId,
+    p_stop_reason:   'manual',
+  })
+  if (error) return { error: error.message }
+  return {}
+}
+
+export async function setContactStatusFromSeq(
+  contactId: string,
+  status: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { error } = await supabase
+    .from('contacts').update({ prospect_status: status }).eq('id', contactId).eq('user_id', user.id)
+  if (error) return { error: error.message }
+
+  if (status === 'refused' || status === 'converted') {
+    await supabase.rpc('cancel_contact_sequences', { p_contact_id: contactId, p_stop_reason: status })
+  }
+  return {}
+}
+
+export async function addContactTagFromSeq(
+  contactId: string,
+  tag: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { error } = await supabase.rpc('add_contact_tag', { p_contact_id: contactId, p_tag: tag.trim() })
+  if (error) return { error: error.message }
+  return {}
+}

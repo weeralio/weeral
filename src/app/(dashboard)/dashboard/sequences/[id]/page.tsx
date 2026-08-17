@@ -4,6 +4,10 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import StepsEditor from './steps-editor'
 import EnrollForm from './enroll-form'
+import SequenceControls from './sequence-controls'
+import MailboxesPanel from './mailboxes-panel'
+import EnrollmentsList from './enrollments-list'
+import type { EnrollmentRow, EnrollmentContact, LastSendEvent } from '../actions'
 
 export default async function SequenceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -23,7 +27,9 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
     supabase.from('seq').select('*').eq('id', id).eq('user_id', user!.id).single(),
     supabase.from('seq_step').select('*').eq('seq_id', id).order('step_number'),
     supabase.from('seq_enrollment').select('id, status').eq('seq_id', id),
-    supabase.from('seq_mailbox').select('mailbox_id, sender_identities!mailbox_id(id, email, display_name)').eq('seq_id', id),
+    supabase.from('seq_mailbox')
+      .select('mailbox_id, sender_identities!mailbox_id(id, email, display_name, throttle_daily_limit, throttle_sent_today, next_available_at, min_interval_seconds)')
+      .eq('seq_id', id),
     supabase.from('sender_identities').select('id, email, display_name').eq('user_id', user!.id).order('email'),
     supabase.from('contacts').select('*', { count: 'exact', head: true }).eq('user_id', user!.id).eq('unsubscribed', false),
     supabase.from('contact_lists').select('id, name, color').eq('user_id', user!.id).order('name'),
@@ -32,8 +38,9 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
 
   if (!sequence) notFound()
 
-  // Send stats from unified sends table
   const enrollmentIds = (enrollments ?? []).map(e => e.id)
+
+  // Second parallel batch — depends on enrollmentIds
   const [{ data: sendStats }, { data: failedSends }] = await (enrollmentIds.length > 0
     ? Promise.all([
         supabase.from('sends').select('status, opened_at, clicked_at, step_number').in('seq_enrollment_id', enrollmentIds),
@@ -45,12 +52,71 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
       ])
   )
 
+  // Pending sends per mailbox + initial enrollment page — in parallel
+  const [
+    { data: pendingSendsByMailbox },
+    { data: initialEnrollmentRows, count: enrollmentTotal },
+  ] = await Promise.all([
+    enrollmentIds.length > 0
+      ? supabase.from('sends').select('mailbox_id').in('seq_enrollment_id', enrollmentIds).eq('status', 'pending')
+      : Promise.resolve({ data: [] as Array<{ mailbox_id: string }> }),
+    supabase.from('seq_enrollment')
+      .select(
+        'id, contact_id, mailbox_id, current_step, status, stop_reason, stopped_at, enrolled_at, completed_at, contacts!contact_id(id, email, first_name, last_name, prospect_status)',
+        { count: 'exact' },
+      )
+      .eq('seq_id', id)
+      .order('enrolled_at', { ascending: false })
+      .range(0, 19),
+  ])
+
+  // Last events for the first enrollment page
+  const initEnrIds = (initialEnrollmentRows ?? []).map(r => r.id)
+  const { data: initEvents } = initEnrIds.length > 0
+    ? await supabase
+        .from('sends')
+        .select('seq_enrollment_id, status, opened_at, clicked_at, step_number, scheduled_at, last_error')
+        .in('seq_enrollment_id', initEnrIds)
+        .order('created_at', { ascending: false })
+    : { data: [] as LastSendEvent[] }
+
+  const lastEventMap: Record<string, LastSendEvent> = {}
+  for (const s of initEvents ?? []) {
+    const e = s as LastSendEvent
+    if (!lastEventMap[e.seq_enrollment_id]) lastEventMap[e.seq_enrollment_id] = e
+  }
+
+  const initialEnrollments: EnrollmentRow[] = (initialEnrollmentRows ?? []).map(r => {
+    const contact = (Array.isArray(r.contacts) ? r.contacts[0] : r.contacts) as EnrollmentContact | null
+    return {
+      id:           r.id,
+      contact_id:   r.contact_id,
+      mailbox_id:   r.mailbox_id,
+      current_step: r.current_step,
+      status:       r.status,
+      stop_reason:  r.stop_reason,
+      stopped_at:   r.stopped_at,
+      enrolled_at:  r.enrolled_at,
+      completed_at: r.completed_at,
+      contact:      contact,
+      lastEvent:    lastEventMap[r.id] ?? null,
+    }
+  })
+
+  // Pending count per mailbox
+  const pendingPerMailbox: Record<string, number> = {}
+  for (const s of pendingSendsByMailbox ?? []) {
+    if (s.mailbox_id) pendingPerMailbox[s.mailbox_id] = (pendingPerMailbox[s.mailbox_id] ?? 0) + 1
+  }
+
+  // Lists with member count
   const countMap: Record<string, number> = {}
   for (const m of members ?? []) {
     countMap[m.list_id] = (countMap[m.list_id] ?? 0) + 1
   }
   const lists = (rawLists ?? []).map(l => ({ ...l, count: countMap[l.id] ?? 0 }))
 
+  // Enrollment stats
   const stats = {
     active:    enrollments?.filter(e => e.status === 'active').length    ?? 0,
     completed: enrollments?.filter(e => e.status === 'completed').length  ?? 0,
@@ -58,6 +124,7 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
     total:     enrollments?.length ?? 0,
   }
 
+  // Send performance
   const totalSends   = sendStats?.length ?? 0
   const totalOpened  = sendStats?.filter(s => s.opened_at !== null).length ?? 0
   const totalClicked = sendStats?.filter(s => s.clicked_at !== null).length ?? 0
@@ -65,7 +132,7 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
   const openRate     = totalSends > 0 ? Math.round((totalOpened  / totalSends) * 100) : 0
   const clickRate    = totalSends > 0 ? Math.round((totalClicked / totalSends) * 100) : 0
 
-  // Stats par étape
+  // Per-step stats
   const stepStats = (steps ?? []).map(step => {
     const stepSends = (sendStats ?? []).filter(s => s.step_number === step.step_number)
     const sent    = stepSends.filter(s => ['sent', 'failed'].includes(s.status)).length
@@ -74,18 +141,34 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
     return { step_number: step.step_number, subject: step.subject, sent, opened, clicked }
   })
 
-  // Assigned mailboxes — normalize the join
+  // Normalize mailbox rows for EnrollForm and MailboxesPanel
   const assignedMailboxes = (seqMailboxRows ?? []).map(r => {
-    const identity = Array.isArray(r.sender_identities) ? r.sender_identities[0] : r.sender_identities
+    const identity = (Array.isArray(r.sender_identities) ? r.sender_identities[0] : r.sender_identities) as Record<string, unknown> | null
     return {
       mailbox_id:   r.mailbox_id,
-      email:        (identity as { email?: string } | null)?.email ?? '',
-      display_name: (identity as { display_name?: string | null } | null)?.display_name ?? null,
+      email:        (identity?.email as string) ?? '',
+      display_name: (identity?.display_name as string | null) ?? null,
+    }
+  })
+
+  const mailboxesData = (seqMailboxRows ?? []).map(r => {
+    const identity = (Array.isArray(r.sender_identities) ? r.sender_identities[0] : r.sender_identities) as Record<string, unknown> | null
+    return {
+      mailbox_id:           r.mailbox_id,
+      email:                (identity?.email as string) ?? '',
+      display_name:         (identity?.display_name as string | null) ?? null,
+      throttle_daily_limit: (identity?.throttle_daily_limit as number) ?? 25,
+      throttle_sent_today:  (identity?.throttle_sent_today as number) ?? 0,
+      next_available_at:    (identity?.next_available_at as string | null) ?? null,
+      min_interval_seconds: (identity?.min_interval_seconds as number) ?? 300,
+      pendingCount:         pendingPerMailbox[r.mailbox_id] ?? 0,
     }
   })
 
   const assignedIds = new Set(assignedMailboxes.map(m => m.mailbox_id))
   const availableIdentities = (allIdentities ?? []).filter(i => !assignedIds.has(i.id))
+
+  const seqStatus = ((sequence as Record<string, unknown>).status ?? 'active') as 'active' | 'paused' | 'stopped'
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -101,7 +184,18 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
         {sequence.description && <p className="text-sm text-[#475569] mt-1">{sequence.description}</p>}
       </div>
 
-      {/* Stats enrollments */}
+      {/* Sequence controls */}
+      <Card>
+        <CardContent className="p-4">
+          <SequenceControls
+            seqId={id}
+            initialStatus={seqStatus}
+            activeCount={stats.active}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Enrollment stats */}
       <Card>
         <CardContent className="p-5">
           <div className="grid grid-cols-4 gap-4 text-center">
@@ -120,17 +214,26 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
         </CardContent>
       </Card>
 
-      {/* Send stats */}
+      {/* Boîtes au travail */}
+      {mailboxesData.length > 0 && (
+        <Card>
+          <CardContent className="p-5">
+            <MailboxesPanel mailboxes={mailboxesData} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Send performance */}
       {totalSends > 0 && (
         <Card>
           <CardContent className="p-5">
             <p className="text-xs font-semibold text-[#475569] uppercase tracking-wider mb-4">Performance des envois</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
               {[
-                { label: 'Emails envoyés', value: totalSends.toLocaleString(),   color: 'text-white' },
-                { label: 'Ouvertures',     value: `${openRate}%`,               color: 'text-emerald-400', sub: `${totalOpened} emails` },
-                { label: 'Clics',          value: `${clickRate}%`,              color: 'text-blue-400',    sub: `${totalClicked} emails` },
-                { label: 'Bounces',        value: totalBounced.toLocaleString(), color: totalBounced > 0 ? 'text-red-400' : 'text-[#475569]' },
+                { label: 'Emails envoyés', value: totalSends.toLocaleString(),    color: 'text-white' },
+                { label: 'Ouvertures',     value: `${openRate}%`,                color: 'text-emerald-400', sub: `${totalOpened} emails` },
+                { label: 'Clics',          value: `${clickRate}%`,               color: 'text-blue-400',    sub: `${totalClicked} emails` },
+                { label: 'Bounces',        value: totalBounced.toLocaleString(),  color: totalBounced > 0 ? 'text-red-400' : 'text-[#475569]' },
               ].map(s => (
                 <div key={s.label}>
                   <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
@@ -143,7 +246,7 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
         </Card>
       )}
 
-      {/* Stats par étape */}
+      {/* Per-step stats */}
       {stepStats.some(s => s.sent > 0) && (
         <Card>
           <CardContent className="p-5">
@@ -167,7 +270,7 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
         </Card>
       )}
 
-      {/* Sends en erreur (last_error) */}
+      {/* Recent send errors */}
       {(failedSends?.length ?? 0) > 0 && (
         <Card>
           <CardContent className="p-5">
@@ -188,7 +291,19 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
         </Card>
       )}
 
-      {/* Enroll */}
+      {/* Contact enrollment list */}
+      <Card>
+        <CardContent className="p-5">
+          <EnrollmentsList
+            seqId={id}
+            totalSteps={steps?.length ?? 0}
+            initialEnrollments={initialEnrollments}
+            initialTotal={enrollmentTotal ?? 0}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Enroll new contacts */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Inscrire des contacts</CardTitle>
@@ -205,7 +320,7 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
         </CardContent>
       </Card>
 
-      {/* Steps */}
+      {/* Steps editor */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Étapes de la séquence</CardTitle>
