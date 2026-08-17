@@ -147,7 +147,8 @@ export default function EnrollmentsList({ seqId, totalSteps, initialEnrollments,
 
   const totalPages = Math.ceil(total / PER_PAGE)
 
-  if (total === 0) return (
+  // Truly empty — no contacts enrolled at all (no search active)
+  if (initialTotal === 0 && !search && !activeSearch) return (
     <p className="text-sm text-[#475569] py-2 text-center">Aucun contact inscrit dans cette séquence.</p>
   )
 
@@ -157,7 +158,9 @@ export default function EnrollmentsList({ seqId, totalSteps, initialEnrollments,
         <p className="text-xs font-semibold text-[#475569] uppercase tracking-wider">
           Contacts inscrits
         </p>
-        <span className="text-xs text-[#3b3b6f]">{total.toLocaleString('fr-FR')} au total</span>
+        <span className="text-xs text-[#3b3b6f]">
+          {total.toLocaleString('fr-FR')} {activeSearch ? 'résultat' + (total > 1 ? 's' : '') : 'au total'}
+        </span>
       </div>
 
       {/* Search */}
@@ -184,8 +187,23 @@ export default function EnrollmentsList({ seqId, totalSteps, initialEnrollments,
         )}
       </div>
 
+      {/* No search results */}
+      {total === 0 && (
+        <div className="rounded-xl border border-[#1e1e3f] py-8 text-center">
+          <p className="text-sm text-[#475569]">
+            Aucun contact trouvé pour &ldquo;{activeSearch}&rdquo;.
+          </p>
+          <button
+            onClick={() => setSearch('')}
+            className="mt-2 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+          >
+            Effacer la recherche
+          </button>
+        </div>
+      )}
+
       {/* Table */}
-      <div className={`rounded-xl border border-[#1e1e3f] overflow-x-auto transition-opacity ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+      {total > 0 && <div className={`rounded-xl border border-[#1e1e3f] overflow-x-auto transition-opacity ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
         <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr className="border-b border-[#1e1e3f] bg-[#07070f]">
@@ -317,7 +335,7 @@ export default function EnrollmentsList({ seqId, totalSteps, initialEnrollments,
             })}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {/* Pagination */}
       {totalPages > 1 && (

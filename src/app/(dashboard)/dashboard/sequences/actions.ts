@@ -512,11 +512,12 @@ export async function getEnrollmentsPage(
   let contactFilter: string[] | null = null
   const term = search?.trim()
   if (term) {
+    // PostgREST uses * as wildcard inside .or() (not %)
     const { data: matches } = await supabase
       .from('contacts')
       .select('id')
       .eq('user_id', user.id)
-      .or(`email.ilike.%${term}%,first_name.ilike.%${term}%,last_name.ilike.%${term}%`)
+      .or(`email.ilike.*${term}*,first_name.ilike.*${term}*,last_name.ilike.*${term}*`)
       .limit(300)
     contactFilter = matches?.map(c => c.id) ?? []
     if (!contactFilter.length) return { total: 0, enrollments: [] }
