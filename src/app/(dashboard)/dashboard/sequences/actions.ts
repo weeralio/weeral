@@ -497,6 +497,7 @@ export async function getEnrollmentsPage(
   seqId: string,
   page: number,
   perPage = 20,
+  search?: string,
 ): Promise<{ error?: string; enrollments?: EnrollmentRow[]; total?: number }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -507,7 +508,21 @@ export async function getEnrollmentsPage(
 
   const offset = (page - 1) * perPage
 
-  const { data: rows, count } = await supabase
+  // If search provided, resolve matching contact IDs first
+  let contactFilter: string[] | null = null
+  const term = search?.trim()
+  if (term) {
+    const { data: matches } = await supabase
+      .from('contacts')
+      .select('id')
+      .eq('user_id', user.id)
+      .or(`email.ilike.%${term}%,first_name.ilike.%${term}%,last_name.ilike.%${term}%`)
+      .limit(300)
+    contactFilter = matches?.map(c => c.id) ?? []
+    if (!contactFilter.length) return { total: 0, enrollments: [] }
+  }
+
+  let q = supabase
     .from('seq_enrollment')
     .select(
       'id, contact_id, mailbox_id, current_step, status, stop_reason, stopped_at, enrolled_at, completed_at, contacts!contact_id(id, email, first_name, last_name, prospect_status)',
@@ -516,6 +531,10 @@ export async function getEnrollmentsPage(
     .eq('seq_id', seqId)
     .order('enrolled_at', { ascending: false })
     .range(offset, offset + perPage - 1)
+
+  if (contactFilter) q = q.in('contact_id', contactFilter)
+
+  const { data: rows, count } = await q
 
   if (!rows) return { total: 0, enrollments: [] }
 

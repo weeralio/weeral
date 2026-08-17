@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import {
   getEnrollmentsPage,
   cancelEnrollment,
@@ -69,6 +69,8 @@ export default function EnrollmentsList({ seqId, totalSteps, initialEnrollments,
   const [rows,      setRows]      = useState(initialEnrollments)
   const [total,     setTotal]     = useState(initialTotal)
   const [page,      setPage]      = useState(1)
+  const [search,    setSearch]    = useState('')
+  const [activeSearch, setActiveSearch] = useState('')
   const [loading,   startLoad]    = useTransition()
   const [acting,    startAction]  = useTransition()
 
@@ -78,18 +80,31 @@ export default function EnrollmentsList({ seqId, totalSteps, initialEnrollments,
   const [tagInput,        setTagInput]        = useState('')
   const [msgs,            setMsgs]            = useState<Record<string, { ok: boolean; text: string }>>({})
 
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Debounce search input — fire after 400 ms idle
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      if (search !== activeSearch) goPage(1, search)
+    }, 400)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
+
   function flash(id: string, ok: boolean, text: string) {
     setMsgs(m => ({ ...m, [id]: { ok, text } }))
     setTimeout(() => setMsgs(m => { const n = { ...m }; delete n[id]; return n }), 3000)
   }
 
-  function goPage(p: number) {
+  function goPage(p: number, s = activeSearch) {
     startLoad(async () => {
-      const res = await getEnrollmentsPage(seqId, p, PER_PAGE)
+      const res = await getEnrollmentsPage(seqId, p, PER_PAGE, s || undefined)
       if (res.enrollments) {
         setRows(res.enrollments)
         setTotal(res.total ?? 0)
         setPage(p)
+        setActiveSearch(s)
         setCancelledIds(new Set())
         setStatusOverrides({})
       }
@@ -143,6 +158,30 @@ export default function EnrollmentsList({ seqId, totalSteps, initialEnrollments,
           Contacts inscrits
         </p>
         <span className="text-xs text-[#3b3b6f]">{total.toLocaleString('fr-FR')} au total</span>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#3b3b6f] pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 111 11a6 6 0 0116 0z" />
+        </svg>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Rechercher par nom ou email…"
+          className="w-full pl-9 pr-8 py-2 rounded-xl bg-[#07070f] border border-[#1e1e3f] text-sm text-white placeholder-[#3b3b6f] focus:outline-none focus:border-violet-500/50 transition-colors"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#3b3b6f] hover:text-[#94a3b8] transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Table */}
