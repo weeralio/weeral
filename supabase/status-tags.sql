@@ -47,6 +47,25 @@ BEGIN
     AND  user_id = v_uid;
 
   GET DIAGNOSTICS v_updated = ROW_COUNT;
+
+  -- refused / converted → arrêt automatique des séquences actives en cascade
+  IF p_new_status IN ('refused', 'converted') THEN
+    WITH stopped AS (
+      UPDATE seq_enrollment e
+      SET    status = 'stopped', stop_reason = p_new_status, stopped_at = now()
+      FROM   seq s
+      WHERE  e.seq_id = s.id
+        AND  s.user_id = v_uid
+        AND  e.contact_id = ANY(p_contact_ids)
+        AND  e.status = 'active'
+      RETURNING e.id
+    )
+    UPDATE sends
+    SET    status = 'cancelling'
+    WHERE  seq_enrollment_id IN (SELECT id FROM stopped)
+      AND  status = 'pending';
+  END IF;
+
   RETURN json_build_object('updated', v_updated);
 END;
 $$;

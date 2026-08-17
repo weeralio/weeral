@@ -366,6 +366,15 @@ export async function setProspectStatus(
     .eq('user_id', user.id)
 
   if (error) return { error: error.message }
+
+  // refused / converted → arrêt automatique de toutes les séquences actives
+  if (status === 'refused' || status === 'converted') {
+    await supabase.rpc('cancel_contact_sequences', {
+      p_contact_id: contactId,
+      p_stop_reason: status,
+    })
+  }
+
   revalidatePath('/dashboard/contacts')
   return {}
 }
