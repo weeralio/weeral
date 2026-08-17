@@ -18,10 +18,12 @@ interface Props {
 export default function EnrollForm({ sequenceId, assignedMailboxes: initial, availableIdentities: initialAvail, lists, totalCount }: Props) {
   const [assigned, setAssigned] = useState(initial)
   const [avail,    setAvail]    = useState(initialAvail)
-  const [listIds,  setListIds]  = useState<string[]>([])
-  const [addOpen,  setAddOpen]  = useState(false)
-  const [result,   setResult]   = useState<string | null>(null)
-  const [error,    setError]    = useState('')
+  const [listIds,    setListIds]    = useState<string[]>([])
+  const [addOpen,    setAddOpen]    = useState(false)
+  const [result,     setResult]     = useState<string | null>(null)
+  const [error,      setError]      = useState('')
+  const [startMode,  setStartMode]  = useState<'now' | 'later'>('now')
+  const [startAt,    setStartAt]    = useState('')
 
   const [isPending,    start]    = useTransition()
   const [isMailboxOp,  startMbx] = useTransition()
@@ -52,12 +54,17 @@ export default function EnrollForm({ sequenceId, assignedMailboxes: initial, ava
 
   function enroll() {
     if (!assigned.length) return
+    if (startMode === 'later' && !startAt) { setError('Sélectionne une date de démarrage.'); return }
     setError('')
     setResult(null)
     start(async () => {
-      const res = await enrollContacts(sequenceId, listIds)
+      const res = await enrollContacts(
+        sequenceId,
+        listIds,
+        startMode === 'later' ? startAt : undefined,
+      )
       if (res.error) setError(res.error)
-      else setResult(`${res.enrolled ?? 0} contacts inscrits`)
+      else setResult(`${res.enrolled ?? 0} contacts inscrits${startMode === 'later' ? ` — démarrage le ${new Date(startAt).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}`)
     })
   }
 
@@ -135,6 +142,32 @@ export default function EnrollForm({ sequenceId, assignedMailboxes: initial, ava
           value={listIds}
           onChange={setListIds}
         />
+      </div>
+
+      {/* Date de démarrage */}
+      <div className="space-y-2">
+        <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">Démarrage</label>
+        <div className="flex gap-2">
+          {(['now', 'later'] as const).map(m => (
+            <button key={m} type="button" onClick={() => setStartMode(m)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                startMode === m
+                  ? 'border-violet-500/60 bg-violet-950/30 text-violet-300'
+                  : 'border-[#1e1e3f] text-[#475569] hover:border-[#3b3b6f] hover:text-[#94a3b8]'
+              }`}>
+              {m === 'now' ? 'Maintenant' : 'Planifier'}
+            </button>
+          ))}
+        </div>
+        {startMode === 'later' && (
+          <input
+            type="datetime-local"
+            value={startAt}
+            onChange={e => setStartAt(e.target.value)}
+            min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+            className="w-full px-3 py-2.5 rounded-xl bg-[#0a0a18] border border-[#1e1e3f] text-white text-sm focus:outline-none focus:border-violet-500/50 [color-scheme:dark]"
+          />
+        )}
       </div>
 
       {error  && <p className="text-sm text-red-400">{error}</p>}

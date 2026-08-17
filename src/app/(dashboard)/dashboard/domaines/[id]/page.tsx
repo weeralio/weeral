@@ -8,6 +8,7 @@ import BulkCreateForm from './bulk-create-form'
 import { getUserProvider } from '../actions'
 import MailgunInboundSetup from './mailgun-inbound-setup'
 import DeleteIdentityButton from './delete-identity-button'
+import MailboxThrottleForm from './mailbox-throttle-form'
 import WarmupChart from '@/components/charts/warmup-chart'
 import WarmupJourney from '@/components/dashboard/warmup-journey'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -57,7 +58,7 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
   ] = await Promise.all([
     supabase.from('domains').select('*').eq('id', id).eq('user_id', user!.id).single(),
     supabase.from('sender_identities')
-      .select('id, email, display_name, warmup_day, warmup_status, daily_volume, sent_today, hard_bounce_rate, complaint_rate, suspension_step, suspended_until, suspension_reason, ses_verified')
+      .select('id, email, display_name, warmup_day, warmup_status, daily_volume, sent_today, hard_bounce_rate, complaint_rate, suspension_step, suspended_until, suspension_reason, ses_verified, throttle_daily_limit, throttle_sent_today, min_interval_seconds, jitter_seconds, send_window_enabled, send_window_start, send_window_end, send_timezone, skip_weekend, next_available_at')
       .eq('domain_id', id)
       .eq('user_id', user!.id)
       .order('created_at', { ascending: false }),
@@ -259,6 +260,22 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
                         <p className="text-[10px] text-[#475569]">{SUSPENSION_STEPS[step - 1]?.desc}</p>
                       </div>
                     )}
+
+                    {/* Throttle settings */}
+                    <MailboxThrottleForm
+                      identityId={mb.id}
+                      domainId={id}
+                      throttle_daily_limit={mb.throttle_daily_limit ?? 25}
+                      min_interval_seconds={mb.min_interval_seconds ?? 300}
+                      jitter_seconds={mb.jitter_seconds ?? 180}
+                      send_window_enabled={mb.send_window_enabled ?? true}
+                      send_window_start={mb.send_window_start ?? '09:00:00'}
+                      send_window_end={mb.send_window_end ?? '18:00:00'}
+                      send_timezone={mb.send_timezone ?? 'Europe/Paris'}
+                      skip_weekend={mb.skip_weekend ?? true}
+                      throttle_sent_today={mb.throttle_sent_today ?? 0}
+                      next_available_at={mb.next_available_at ?? null}
+                    />
                   </div>
                 )
               })}

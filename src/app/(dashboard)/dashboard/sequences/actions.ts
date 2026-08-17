@@ -196,6 +196,7 @@ export async function deleteStep(stepId: string, sequenceId: string): Promise<{ 
 export async function enrollContacts(
   sequenceId: string,
   listIds: string[],
+  startAt?: string,
 ): Promise<{ error?: string; enrolled?: number }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -248,10 +249,12 @@ export async function enrollContacts(
   }
   if (!contacts?.length) return { error: 'Aucun contact actif trouvé' }
 
-  const scheduledAt = new Date()
+  // Base date: explicit start or now
+  const scheduledAt = startAt ? new Date(startAt) : new Date()
   if (firstStep.delay_days > 0) {
     scheduledAt.setDate(scheduledAt.getDate() + firstStep.delay_days)
-  } else {
+  } else if (!startAt) {
+    // No explicit start: send in 1 h to let the drain wake up
     scheduledAt.setHours(scheduledAt.getHours() + 1)
   }
 

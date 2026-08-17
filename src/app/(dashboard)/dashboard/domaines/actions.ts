@@ -542,3 +542,40 @@ export async function setupMailgunInbound(domainId: string): Promise<MailgunInbo
 
   return { configured: true, mxRecords, region, replyDomain }
 }
+
+// ─── Throttle settings per mailbox ───────────────────────────────────────────
+
+export async function updateMailboxThrottle(
+  identityId: string,
+  data: {
+    throttle_daily_limit: number
+    min_interval_seconds: number
+    jitter_seconds: number
+    send_window_enabled: boolean
+    send_window_start: string
+    send_window_end: string
+    send_timezone: string
+    skip_weekend: boolean
+  }
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  if (data.throttle_daily_limit < 1 || data.throttle_daily_limit > 500)
+    return { error: 'Limite quotidienne : entre 1 et 500' }
+  if (data.min_interval_seconds < 60 || data.min_interval_seconds > 86400)
+    return { error: 'Intervalle : entre 60 s et 86 400 s (24 h)' }
+  if (data.jitter_seconds < 0 || data.jitter_seconds > data.min_interval_seconds)
+    return { error: 'Variation aléatoire : entre 0 et la valeur de l\'intervalle' }
+
+  const { error } = await supabase
+    .from('sender_identities')
+    .update(data)
+    .eq('id', identityId)
+    .eq('user_id', user.id)
+
+  if (error) return { error: error.message }
+  revalidatePath('/dashboard/domaines')
+  return {}
+}
