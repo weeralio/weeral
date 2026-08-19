@@ -51,7 +51,6 @@ export default async function ContactsPage({
   const [
     { data: contacts, count },
     { data: lists },
-    { data: listMemberships },
   ] = await Promise.all([
     query,
     supabase
@@ -59,14 +58,16 @@ export default async function ContactsPage({
       .select('id, name, color')
       .eq('user_id', user!.id)
       .order('created_at'),
-    supabase
-      .from('contact_list_members')
-      .select('list_id, contact_id')
-      .in('list_id',
-        (await supabase.from('contact_lists').select('id').eq('user_id', user!.id))
-          .data?.map(l => l.id) ?? []
-      ),
   ])
+
+  const listIds = lists?.map(l => l.id) ?? []
+  const { data: listMemberships } = listIds.length > 0
+    ? await supabase
+        .from('contact_list_members')
+        .select('list_id, contact_id')
+        .in('list_id', listIds)
+        .limit(100000)
+    : { data: [] as { list_id: string; contact_id: string }[] }
 
   // Count per list
   const listCounts: Record<string, number> = {}
