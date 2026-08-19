@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { enrollContacts, addSeqMailbox, removeSeqMailbox } from '../actions'
+import { enrollContacts, addSeqMailbox, addAllSeqMailboxes, removeSeqMailbox } from '../actions'
 import ListPicker, { type ContactList } from '@/components/dashboard/list-picker'
 
 interface Mailbox  { mailbox_id: string; email: string; display_name: string | null }
@@ -42,6 +42,17 @@ export default function EnrollForm({ sequenceId, assignedMailboxes: initial, ava
     })
   }
 
+  function handleAddAll() {
+    setAddOpen(false)
+    const toAdd = [...avail]
+    startMbx(async () => {
+      const res = await addAllSeqMailboxes(sequenceId, toAdd.map(i => i.id))
+      if (res.error) { setError(res.error); return }
+      setAssigned(prev => [...prev, ...toAdd.map(i => ({ mailbox_id: i.id, email: i.email, display_name: i.display_name }))])
+      setAvail([])
+    })
+  }
+
   function handleRemove(mailboxId: string) {
     startMbx(async () => {
       const res = await removeSeqMailbox(sequenceId, mailboxId)
@@ -75,7 +86,17 @@ export default function EnrollForm({ sequenceId, assignedMailboxes: initial, ava
         <div className="flex items-center justify-between">
           <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider">Boîtes d&apos;envoi</label>
           {avail.length > 0 && (
-            <div className="relative">
+            <div className="relative flex items-center gap-2">
+              {avail.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleAddAll}
+                  disabled={isMailboxOp}
+                  className="text-xs px-2.5 py-1 rounded-lg border border-violet-500/30 text-violet-300 hover:bg-violet-950/30 transition-all disabled:opacity-50"
+                >
+                  Tout sélectionner ({avail.length})
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setAddOpen(o => !o)}

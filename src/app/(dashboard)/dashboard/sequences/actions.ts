@@ -135,6 +135,23 @@ export async function addSeqMailbox(
   return {}
 }
 
+export async function addAllSeqMailboxes(
+  sequenceId: string,
+  mailboxIds: string[],
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { error } = await supabase
+    .from('seq_mailbox')
+    .upsert(mailboxIds.map(id => ({ seq_id: sequenceId, mailbox_id: id })), { ignoreDuplicates: true })
+
+  if (error) return { error: error.message }
+  revalidatePath(`/dashboard/sequences/${sequenceId}`)
+  return {}
+}
+
 export async function removeSeqMailbox(
   sequenceId: string,
   mailboxId: string,
