@@ -61,25 +61,31 @@ export default async function ContactsPage({
   ])
 
   const listIds = lists?.map(l => l.id) ?? []
-  const { data: listMemberships } = listIds.length > 0
-    ? await supabase
-        .from('contact_list_members')
-        .select('list_id, contact_id')
-        .in('list_id', listIds)
-        .limit(100000)
-    : { data: [] as { list_id: string; contact_id: string }[] }
 
-  // Count per list
+  // Count per list — one HEAD query per list (bypasses max-rows limit entirely)
   const listCounts: Record<string, number> = {}
-  for (const m of listMemberships ?? []) {
-    listCounts[m.list_id] = (listCounts[m.list_id] ?? 0) + 1
+  if (listIds.length > 0) {
+    await Promise.all(listIds.map(async (lid) => {
+      const { count: c } = await supabase
+        .from('contact_list_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('list_id', lid)
+      listCounts[lid] = c ?? 0
+    }))
   }
 
-  // Contact → lists map
+  // Contact → lists map — only for contacts on this page (≤ 50 rows, no limit issue)
+  const contactIds = contacts?.map(c => c.id) ?? []
   const contactLists: Record<string, string[]> = {}
-  for (const m of listMemberships ?? []) {
-    if (!contactLists[m.contact_id]) contactLists[m.contact_id] = []
-    contactLists[m.contact_id].push(m.list_id)
+  if (contactIds.length > 0) {
+    const { data: pageMemberships } = await supabase
+      .from('contact_list_members')
+      .select('list_id, contact_id')
+      .in('contact_id', contactIds)
+    for (const m of pageMemberships ?? []) {
+      if (!contactLists[m.contact_id]) contactLists[m.contact_id] = []
+      contactLists[m.contact_id].push(m.list_id)
+    }
   }
 
   // Stats
