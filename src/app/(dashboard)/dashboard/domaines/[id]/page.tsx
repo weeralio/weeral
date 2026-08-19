@@ -8,6 +8,7 @@ import BulkCreateForm from './bulk-create-form'
 import { getUserProvider } from '../actions'
 import MailgunInboundSetup from './mailgun-inbound-setup'
 import DeleteIdentityButton from './delete-identity-button'
+import EditIdentityForm from './edit-identity-form'
 import MailboxThrottleForm from './mailbox-throttle-form'
 import WarmupChart from '@/components/charts/warmup-chart'
 import WarmupJourney from '@/components/dashboard/warmup-journey'
@@ -199,6 +200,9 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-medium text-white truncate">{mb.email}</span>
+                          {mb.display_name && (
+                            <span className="text-xs text-[#475569] truncate">{mb.display_name}</span>
+                          )}
                           <span className={`text-xs ${statusColor}`}>{statusLabel}</span>
                         </div>
                       </div>
@@ -208,6 +212,13 @@ export default async function DomainDetailPage({ params }: { params: Promise<{ i
                           {phase.emoji} {phase.name}
                         </span>
                       )}
+                      <EditIdentityForm
+                        identityId={mb.id}
+                        domainId={id}
+                        domain={domain.domain}
+                        email={mb.email}
+                        displayName={mb.display_name ?? null}
+                      />
                       <DeleteIdentityButton identityId={mb.id} domainId={id} email={mb.email} />
                     </div>
 

@@ -278,6 +278,44 @@ export async function addSenderIdentitiesBulk(
 
 // ─── AWS SES: verify sender email ────────────────────────────────────────────
 
+export async function updateSenderIdentity(
+  identityId: string,
+  domainId: string,
+  data: { emailPrefix: string; displayName: string },
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const prefix = data.emailPrefix.toLowerCase().trim().replace(/[^a-z0-9._+-]/g, '')
+  if (!prefix) return { error: 'Préfixe email invalide' }
+
+  const { data: domainRow } = await supabase
+    .from('domains')
+    .select('domain')
+    .eq('id', domainId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!domainRow) return { error: 'Domaine introuvable' }
+
+  const newEmail = `${prefix}@${domainRow.domain}`
+
+  const { error } = await supabase
+    .from('sender_identities')
+    .update({ email: newEmail, display_name: data.displayName.trim() || null })
+    .eq('id', identityId)
+    .eq('user_id', user.id)
+
+  if (error) {
+    if (error.code === '23505') return { error: 'Cette adresse existe déjà' }
+    return { error: error.message }
+  }
+
+  revalidatePath(`/dashboard/domaines/${domainId}`)
+  return {}
+}
+
 export async function deleteSenderIdentity(identityId: string, domainId: string): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
