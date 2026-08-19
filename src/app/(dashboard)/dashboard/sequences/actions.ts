@@ -606,6 +606,30 @@ export async function setContactStatusFromSeq(
   return {}
 }
 
+// ─── Mailbox quota (éditable depuis la page séquence) ────────────────────────
+
+export async function updateMailboxQuota(
+  identityId: string,
+  dailyLimit: number,
+  intervalMinutes: number,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const limit   = Math.max(1, Math.min(500, Math.round(dailyLimit)))
+  const seconds = Math.max(60, Math.min(86400, Math.round(intervalMinutes * 60)))
+
+  const { error } = await supabase
+    .from('sender_identities')
+    .update({ throttle_daily_limit: limit, min_interval_seconds: seconds })
+    .eq('id', identityId)
+    .eq('user_id', user.id)
+
+  if (error) return { error: error.message }
+  return {}
+}
+
 export async function addContactTagFromSeq(
   contactId: string,
   tag: string,
