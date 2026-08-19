@@ -22,7 +22,6 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
     { data: allIdentities },
     { count: totalCount },
     { data: rawLists },
-    { data: members },
   ] = await Promise.all([
     supabase.from('seq').select('*').eq('id', id).eq('user_id', user!.id).single(),
     supabase.from('seq_step').select('*').eq('seq_id', id).order('step_number'),
@@ -33,7 +32,6 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
     supabase.from('sender_identities').select('id, email, display_name').eq('user_id', user!.id).order('email'),
     supabase.from('contacts').select('*', { count: 'exact', head: true }).eq('user_id', user!.id).eq('unsubscribed', false),
     supabase.from('contact_lists').select('id, name, color').eq('user_id', user!.id).order('name'),
-    supabase.from('contact_list_members').select('list_id'),
   ])
 
   if (!sequence) notFound()
@@ -109,10 +107,17 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
     if (s.mailbox_id) pendingPerMailbox[s.mailbox_id] = (pendingPerMailbox[s.mailbox_id] ?? 0) + 1
   }
 
-  // Lists with member count
+  // Per-list counts via HEAD queries (bypasses PostgREST max-rows limit)
+  const listIds = rawLists?.map(l => l.id) ?? []
   const countMap: Record<string, number> = {}
-  for (const m of members ?? []) {
-    countMap[m.list_id] = (countMap[m.list_id] ?? 0) + 1
+  if (listIds.length > 0) {
+    await Promise.all(listIds.map(async (lid) => {
+      const { count: c } = await supabase
+        .from('contact_list_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('list_id', lid)
+      countMap[lid] = c ?? 0
+    }))
   }
   const lists = (rawLists ?? []).map(l => ({ ...l, count: countMap[l.id] ?? 0 }))
 

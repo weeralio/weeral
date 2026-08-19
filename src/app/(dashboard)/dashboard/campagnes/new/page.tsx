@@ -10,7 +10,6 @@ export default async function NewCampaignPage() {
     { data: identities },
     { count: contactCount },
     { data: rawLists },
-    { data: members },
   ] = await Promise.all([
     supabase
       .from('sender_identities')
@@ -27,15 +26,19 @@ export default async function NewCampaignPage() {
       .select('id, name, color')
       .eq('user_id', user!.id)
       .order('name'),
-    supabase
-      .from('contact_list_members')
-      .select('list_id'),
   ])
 
-  // Build per-list contact counts
+  // Per-list counts via HEAD queries (bypasses PostgREST max-rows limit)
+  const listIds = rawLists?.map(l => l.id) ?? []
   const countMap: Record<string, number> = {}
-  for (const m of members ?? []) {
-    countMap[m.list_id] = (countMap[m.list_id] ?? 0) + 1
+  if (listIds.length > 0) {
+    await Promise.all(listIds.map(async (lid) => {
+      const { count: c } = await supabase
+        .from('contact_list_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('list_id', lid)
+      countMap[lid] = c ?? 0
+    }))
   }
   const lists = (rawLists ?? []).map(l => ({ ...l, count: countMap[l.id] ?? 0 }))
 
