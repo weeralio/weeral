@@ -22,6 +22,16 @@ function nextLabel(iso: string | null): string {
   return `dans ${Math.round(diff / 60)} min`
 }
 
+function isOutsideSendWindow(): boolean {
+  const now = new Date()
+  const h = now.getHours()
+  const day = now.getDay()
+  // Rough check in local time (server-side would be more accurate, this is display-only)
+  if (day === 0 || day === 6) return true
+  if (h < 9 || h >= 18) return true
+  return false
+}
+
 function statusBadge(m: MailboxActivity & { localLimit: number }): { label: string; cls: string } {
   if (m.throttle_sent_today >= m.localLimit)
     return { label: 'Quota atteint',   cls: 'text-red-400 bg-red-400/10 border-red-400/20' }
@@ -31,6 +41,8 @@ function statusBadge(m: MailboxActivity & { localLimit: number }): { label: stri
     return { label: nextLabel(m.next_available_at), cls: 'text-amber-400 bg-amber-400/10 border-amber-400/20' }
   if (m.pendingCount === 0)
     return { label: 'Rien en attente', cls: 'text-[#475569] bg-[#0a0a18] border-[#1e1e3f]' }
+  if (isOutsideSendWindow())
+    return { label: 'Hors fenêtre',    cls: 'text-[#475569] bg-[#0a0a18] border-[#1e1e3f]' }
   return   { label: 'Actif',           cls: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' }
 }
 

@@ -81,7 +81,15 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
   const lastEventMap: Record<string, LastSendEvent> = {}
   for (const s of initEvents ?? []) {
     const e = s as LastSendEvent
-    if (!lastEventMap[e.seq_enrollment_id]) lastEventMap[e.seq_enrollment_id] = e
+    const existing = lastEventMap[e.seq_enrollment_id]
+    if (!existing) {
+      lastEventMap[e.seq_enrollment_id] = e
+    } else if (
+      (e.clicked_at && !existing.clicked_at) ||
+      (e.opened_at && !existing.clicked_at && !existing.opened_at)
+    ) {
+      lastEventMap[e.seq_enrollment_id] = e
+    }
   }
 
   const initialEnrollments: EnrollmentRow[] = (initialEnrollmentRows ?? []).map(r => {
@@ -130,7 +138,7 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
   }
 
   // Send performance
-  const totalSends   = sendStats?.length ?? 0
+  const totalSends   = sendStats?.filter(s => s.status === 'sent' || s.opened_at !== null || s.clicked_at !== null).length ?? 0
   const totalOpened  = sendStats?.filter(s => s.opened_at !== null).length ?? 0
   const totalClicked = sendStats?.filter(s => s.clicked_at !== null).length ?? 0
   const totalBounced = sendStats?.filter(s => s.status === 'failed').length ?? 0

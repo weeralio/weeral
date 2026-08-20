@@ -20,6 +20,7 @@ export async function createCampaign(prevState: State, formData: FormData): Prom
   const bodyRaw = formData.get('body_html') as string
   const listIdsRaw = formData.get('list_ids') as string | null
   const listIds: string[] = listIdsRaw ? JSON.parse(listIdsRaw) : []
+  const trackingEnabled = formData.get('tracking_enabled') !== '0'
 
   if (!name || !senderIdentityId || !subject || !bodyRaw) {
     return { error: 'Tous les champs obligatoires doivent être remplis' }
@@ -55,6 +56,7 @@ export async function createCampaign(prevState: State, formData: FormData): Prom
       body_html: bodyHtml,
       body_text: bodyText ?? null,
       status: 'draft',
+      tracking_enabled: trackingEnabled,
     })
     .select('id')
     .single()
@@ -128,7 +130,7 @@ export async function triggerSend(campaignId: string): Promise<{ sent?: number; 
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, subject, body_html, body_text, status, sender_identities(id, email, display_name, domain_id, domains(id, daily_limit, sent_today, status))')
+    .select('id, subject, body_html, body_text, status, tracking_enabled, sender_identities(id, email, display_name, domain_id, domains(id, daily_limit, sent_today, status))')
     .eq('id', campaignId)
     .eq('user_id', user.id)
     .single()
@@ -180,7 +182,7 @@ export async function triggerSend(campaignId: string): Promise<{ sent?: number; 
         htmlBody: html,
         textBody: text,
         unsubscribeUrl: unsubscribeUrl(cc.contact_id, campaignId),
-        tracking: { contactId: cc.contact_id, campaignId },
+        ...(campaign.tracking_enabled !== false && { tracking: { contactId: cc.contact_id, campaignId } }),
       })
 
       await Promise.all([

@@ -30,7 +30,7 @@ function eventLabel(row: EnrollmentRow): { text: string; cls: string } {
   }
   const ev = row.lastEvent
   if (!ev) return { text: 'En attente', cls: 'text-[#3b3b6f]' }
-  if (ev.status === 'failed')  return { text: `Erreur : ${ev.last_error?.slice(0, 40) ?? '?'}`, cls: 'text-red-400' }
+  if (ev.status === 'failed')  return { text: `Erreur : ${ev.last_error?.slice(0, 50) ?? '?'}`, cls: 'text-red-400' }
   if (ev.clicked_at)           return { text: 'Cliqué',          cls: 'text-blue-400' }
   if (ev.opened_at)            return { text: 'Ouvert',           cls: 'text-emerald-400' }
   if (ev.status === 'sent')    return { text: 'Envoyé',           cls: 'text-[#94a3b8]' }
@@ -38,6 +38,7 @@ function eventLabel(row: EnrollmentRow): { text: string; cls: string } {
   if (ev.status === 'pending') {
     const d = new Date(ev.scheduled_at)
     if (d.getFullYear() > 2090) return { text: 'En pause (séquence)', cls: 'text-amber-400' }
+    if (ev.last_error) return { text: `Erreur : ${ev.last_error.slice(0, 50)}`, cls: 'text-amber-400' }
     return {
       text: `Prévu ${d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
       cls: 'text-[#475569]',

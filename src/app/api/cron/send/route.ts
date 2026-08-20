@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   const { data: campaigns } = await supabase
     .from('campaigns')
     .select(`
-      id, user_id, subject, body_html, body_text,
+      id, user_id, subject, body_html, body_text, tracking_enabled,
       sender_identities(email, display_name, domain_id,
         domains(id, daily_limit, sent_today, status))
     `)
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
           htmlBody: html,
           textBody: campaign.body_text ? interpolate(campaign.body_text, contact) : undefined,
           unsubscribeUrl: unsubscribeUrl(contactId, campaign.id),
-          tracking: { contactId, campaignId: campaign.id },
+          ...(campaign.tracking_enabled !== false && { tracking: { contactId, campaignId: campaign.id } }),
         })
 
         await Promise.all([

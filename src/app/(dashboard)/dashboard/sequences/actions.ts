@@ -271,8 +271,8 @@ export async function enrollContacts(
   if (firstStep.delay_days > 0) {
     scheduledAt.setDate(scheduledAt.getDate() + firstStep.delay_days)
   } else if (!startAt) {
-    // No explicit start: send in 1 h to let the drain wake up
-    scheduledAt.setHours(scheduledAt.getHours() + 1)
+    // No explicit start: schedule 5 min ahead so the next tick picks it up immediately
+    scheduledAt.setMinutes(scheduledAt.getMinutes() + 5)
   }
 
   const serviceClient = createServiceClient()
@@ -568,7 +568,15 @@ export async function getEnrollmentsPage(
   const lastEventMap: Record<string, LastSendEvent> = {}
   for (const s of events ?? []) {
     const e = s as LastSendEvent
-    if (!lastEventMap[e.seq_enrollment_id]) lastEventMap[e.seq_enrollment_id] = e
+    const existing = lastEventMap[e.seq_enrollment_id]
+    if (!existing) {
+      lastEventMap[e.seq_enrollment_id] = e
+    } else if (
+      (e.clicked_at && !existing.clicked_at) ||
+      (e.opened_at && !existing.clicked_at && !existing.opened_at)
+    ) {
+      lastEventMap[e.seq_enrollment_id] = e
+    }
   }
 
   return {

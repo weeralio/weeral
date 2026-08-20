@@ -68,6 +68,7 @@ export default function NewCampaignForm({ identities, contactCount, lists }: Pro
   const [state, formAction, pending] = useActionState(createCampaign, null)
   const [listIds, setListIds] = useState<string[]>([])
   const [bodyHtml, setBodyHtml] = useState('')
+  const [trackingEnabled, setTrackingEnabled] = useState(true)
 
   const selectedCount = listIds.length === 0
     ? contactCount
@@ -75,8 +76,9 @@ export default function NewCampaignForm({ identities, contactCount, lists }: Pro
 
   return (
     <form action={formAction} className="space-y-5">
-      {/* Hidden field for list selection */}
+      {/* Hidden fields */}
       <input type="hidden" name="list_ids" value={JSON.stringify(listIds)} />
+      <input type="hidden" name="tracking_enabled" value={trackingEnabled ? '1' : '0'} />
 
       <div className="bg-[#0d0d1c] border border-[#1e1e3f] rounded-2xl p-6 space-y-5">
 
@@ -126,6 +128,30 @@ export default function NewCampaignForm({ identities, contactCount, lists }: Pro
             value={listIds}
             onChange={setListIds}
           />
+        </div>
+
+        {/* Tracking */}
+        <div className="pt-1 border-t border-[#1e1e3f]">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={trackingEnabled}
+            onClick={() => setTrackingEnabled(v => !v)}
+            className="flex items-center justify-between w-full group"
+          >
+            <div className="text-left">
+              <p className="text-sm font-medium text-[#94a3b8] group-hover:text-white transition-colors">
+                Suivi d&apos;ouverture &amp; de clics
+              </p>
+              <p className="text-xs text-[#334155] mt-0.5">
+                Ajoute un pixel invisible et réérit les liens pour traquer les opens/clics.
+                Désactiver améliore la délivrabilité.
+              </p>
+            </div>
+            <div className={`ml-4 shrink-0 w-10 h-6 rounded-full transition-colors duration-200 flex items-center px-0.5 ${trackingEnabled ? 'bg-violet-600' : 'bg-[#1e1e3f]'}`}>
+              <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${trackingEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+            </div>
+          </button>
         </div>
       </div>
 
