@@ -297,26 +297,21 @@ export async function enrollContacts(
     if (!inserted?.length) continue
     enrolled += inserted.length
 
-    const sendInserts = inserted.map(enrollment => {
-      const mbox    = mailboxes.find(m => m.id === enrollment.mailbox_id) ?? mailboxes[0]
-      const domainRow = Array.isArray(mbox.domains) ? mbox.domains[0] : mbox.domains
-      const domain  = (domainRow as { domain?: string } | null)?.domain ?? 'mail.invalid'
-      return {
-        user_id:           user.id,
-        mailbox_id:        enrollment.mailbox_id,
-        contact_id:        enrollment.contact_id,
-        source_type:       'sequence' as const,
-        source_id:         sequenceId,
-        step_number:       1,
-        seq_enrollment_id: enrollment.id,
-        subject:           firstStep.subject,
-        body_html:         firstStep.body_html,
-        body_text:         firstStep.body_text ?? null,
-        reply_to:          `r+${enrollment.id}@reply.${domain}`,
-        scheduled_at:      scheduledAt.toISOString(),
-        status:            'pending' as const,
-      }
-    })
+    const sendInserts = inserted.map(enrollment => ({
+      user_id:           user.id,
+      mailbox_id:        enrollment.mailbox_id,
+      contact_id:        enrollment.contact_id,
+      source_type:       'sequence' as const,
+      source_id:         sequenceId,
+      step_number:       1,
+      seq_enrollment_id: enrollment.id,
+      subject:           firstStep.subject,
+      body_html:         firstStep.body_html,
+      body_text:         firstStep.body_text ?? null,
+      reply_to:          null,
+      scheduled_at:      scheduledAt.toISOString(),
+      status:            'pending' as const,
+    }))
 
     await serviceClient.from('sends').insert(sendInserts)
   }

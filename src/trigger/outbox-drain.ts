@@ -220,7 +220,7 @@ export const outboxDrain = task({
               subject:           nextStep.subject,
               body_html:         nextStep.body_html,
               body_text:         nextStep.body_text ?? null,
-              reply_to:          send.reply_to,
+              reply_to:          null,
               scheduled_at:      nextScheduled.toISOString(),
               status:            'pending',
             }),
