@@ -237,7 +237,7 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
       )}
 
       {/* Send performance */}
-      {totalSends > 0 && (
+      {stats.total > 0 && (
         <Card>
           <CardContent className="p-5">
             <p className="text-xs font-semibold text-[#475569] uppercase tracking-wider mb-4">Performance des envois</p>
