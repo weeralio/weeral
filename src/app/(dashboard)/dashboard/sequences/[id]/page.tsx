@@ -36,28 +36,32 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
 
   if (!sequence) notFound()
 
-  const enrollmentIds = (enrollments ?? []).map(e => e.id)
-
-  // Second parallel batch — depends on enrollmentIds
-  const [{ data: sendStats }, { data: failedSends }] = await (enrollmentIds.length > 0
-    ? Promise.all([
-        supabase.from('sends').select('status, opened_at, clicked_at, step_number').in('seq_enrollment_id', enrollmentIds),
-        supabase.from('sends').select('id, step_number, last_error, contact_id, contacts!contact_id(email)').in('seq_enrollment_id', enrollmentIds).eq('status', 'failed').order('created_at', { ascending: false }).limit(20),
-      ])
-    : Promise.resolve([
-        { data: [] as Array<{ status: string; opened_at: string | null; clicked_at: string | null; step_number: number }> },
-        { data: [] as Array<{ id: string; step_number: number; last_error: string | null; contact_id: string; contacts: { email: string } | null }> },
-      ])
-  )
-
-  // Pending sends per mailbox + initial enrollment page — in parallel
+  // Second parallel batch — all queries use source_id (avoids large .in() URL overflow)
   const [
+    { count: totalSendsCount },
+    { count: totalOpenedCount },
+    { count: totalClickedCount },
+    { count: totalBouncedCount },
+    { data: stepStatRows },
+    { data: failedSends },
     { data: pendingSendsByMailbox },
     { data: initialEnrollmentRows, count: enrollmentTotal },
   ] = await Promise.all([
-    enrollmentIds.length > 0
-      ? supabase.from('sends').select('mailbox_id').in('seq_enrollment_id', enrollmentIds).eq('status', 'pending')
-      : Promise.resolve({ data: [] as Array<{ mailbox_id: string }> }),
+    supabase.from('sends').select('*', { count: 'exact', head: true })
+      .eq('source_id', id).eq('source_type', 'sequence').eq('status', 'sent'),
+    supabase.from('sends').select('*', { count: 'exact', head: true })
+      .eq('source_id', id).eq('source_type', 'sequence').not('opened_at', 'is', null),
+    supabase.from('sends').select('*', { count: 'exact', head: true })
+      .eq('source_id', id).eq('source_type', 'sequence').not('clicked_at', 'is', null),
+    supabase.from('sends').select('*', { count: 'exact', head: true })
+      .eq('source_id', id).eq('source_type', 'sequence').eq('status', 'failed'),
+    supabase.from('sends').select('step_number, status, opened_at, clicked_at')
+      .eq('source_id', id).eq('source_type', 'sequence').limit(5000),
+    supabase.from('sends').select('id, step_number, last_error, contact_id, contacts!contact_id(email)')
+      .eq('source_id', id).eq('source_type', 'sequence').eq('status', 'failed')
+      .order('created_at', { ascending: false }).limit(20),
+    supabase.from('sends').select('mailbox_id')
+      .eq('source_id', id).eq('source_type', 'sequence').eq('status', 'pending').limit(2000),
     supabase.from('seq_enrollment')
       .select(
         'id, contact_id, mailbox_id, current_step, status, stop_reason, stopped_at, enrolled_at, completed_at, contacts!contact_id(id, email, first_name, last_name, prospect_status)',
@@ -68,7 +72,7 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
       .range(0, 19),
   ])
 
-  // Last events for the first enrollment page
+  // Last events for first enrollment page (max 20 IDs — safe for .in())
   const initEnrIds = (initialEnrollmentRows ?? []).map(r => r.id)
   const { data: initEvents } = initEnrIds.length > 0
     ? await supabase
@@ -134,21 +138,21 @@ export default async function SequenceDetailPage({ params }: { params: Promise<{
     active:    enrollments?.filter(e => e.status === 'active').length    ?? 0,
     completed: enrollments?.filter(e => e.status === 'completed').length  ?? 0,
     replied:   enrollments?.filter(e => e.status === 'replied').length    ?? 0,
-    total:     enrollments?.length ?? 0,
+    total:     enrollmentTotal ?? enrollments?.length ?? 0,
   }
 
-  // Send performance
-  const totalSends   = sendStats?.filter(s => s.status === 'sent' || s.opened_at !== null || s.clicked_at !== null).length ?? 0
-  const totalOpened  = sendStats?.filter(s => s.opened_at !== null).length ?? 0
-  const totalClicked = sendStats?.filter(s => s.clicked_at !== null).length ?? 0
-  const totalBounced = sendStats?.filter(s => s.status === 'failed').length ?? 0
+  // Send performance (count queries — accurate for any sequence size)
+  const totalSends   = totalSendsCount   ?? 0
+  const totalOpened  = totalOpenedCount  ?? 0
+  const totalClicked = totalClickedCount ?? 0
+  const totalBounced = totalBouncedCount ?? 0
   const openRate     = totalSends > 0 ? Math.round((totalOpened  / totalSends) * 100) : 0
   const clickRate    = totalSends > 0 ? Math.round((totalClicked / totalSends) * 100) : 0
 
   // Per-step stats
   const stepStats = (steps ?? []).map(step => {
-    const stepSends = (sendStats ?? []).filter(s => s.step_number === step.step_number)
-    const sent    = stepSends.filter(s => ['sent', 'failed'].includes(s.status)).length
+    const stepSends = (stepStatRows ?? []).filter(s => s.step_number === step.step_number)
+    const sent    = stepSends.filter(s => s.status === 'sent' || s.opened_at !== null || s.clicked_at !== null).length
     const opened  = stepSends.filter(s => s.opened_at !== null).length
     const clicked = stepSends.filter(s => s.clicked_at !== null).length
     return { step_number: step.step_number, subject: step.subject, sent, opened, clicked }
