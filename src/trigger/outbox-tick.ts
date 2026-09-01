@@ -45,15 +45,8 @@ export const outboxTick = schedules.task({
     }
 
     // ── 3. Déclencher un drain par boîte ayant des sends pending ───────────────
-    const now = new Date().toISOString()
-    const { data: pendingRows } = await supabase
-      .from('sends')
-      .select('mailbox_id')
-      .eq('status', 'pending')
-      .lte('scheduled_at', now)
-      .limit(500)
-
-    const mailboxIds = [...new Set((pendingRows ?? []).map(r => r.mailbox_id))]
+    const { data: mailboxRows } = await supabase.rpc('get_mailboxes_with_pending_sends')
+    const mailboxIds = (mailboxRows as string[] | null) ?? []
 
     if (mailboxIds.length > 0) {
       await tasks.batchTrigger<typeof outboxDrain>(
